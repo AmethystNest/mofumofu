@@ -1,6 +1,6 @@
 /** 犬の見た目・動きの確認ページ（2D黒柴） */
 import { Application, Container, FillGradient, Graphics } from 'pixi.js';
-import { ShibaDog, type DogState, type Outfit } from './shiba/dog';
+import { NO_OUTFIT, ShibaDog, type DogState, type Outfit } from './shiba/dog';
 import { HEADWEAR, NECKWEAR } from './shiba/parts';
 import { DEFAULT_DECOR, LIGHT_X, Room, RW, SLOTS, type Decor } from './room/room';
 import './dog-lab.css';
@@ -14,7 +14,7 @@ app.innerHTML = `
   <div class="stage" id="stage"></div>
   <div class="states" id="states">${STATES.map(([s, l]) => `<button data-s="${s}">${l}</button>`).join('')}</div>
   <p class="hint">犬をタップすると「なでられ」になります。</p>
-  <label class="row">成長 <input type="range" id="age" min="0" max="1" step="0.01" value="0"><span id="ageLabel">子犬</span></label>
+  <label class="row">成長 <input type="range" id="age" min="0" max="1" step="0.05" value="0"><span id="ageLabel">子犬</span></label>
   <div class="row"><span>首</span><div class="chips" id="neck">${NECKWEAR.map(n => `<button data-v="${n.id}">${n.name}</button>`).join('')}</div></div>
   <div class="row"><span>頭</span><div class="chips" id="head">${HEADWEAR.map(n => `<button data-v="${n.id}">${n.name}</button>`).join('')}</div></div>
   <h2>部屋</h2>
@@ -68,13 +68,13 @@ const bowl = new Graphics()
 bowl.position.set(-30, 8);
 
 const t0 = performance.now();
-const dog = new ShibaDog(dogScale * DPR);
+const dog = new ShibaDog(dogScale * DPR, NO_OUTFIT, +(q.get('age') || 0));
 const genMs = performance.now() - t0;
 holder.addChild(dog.view);
 holder.addChild(bowl);
 
 let state: DogState = (q.get('s') as DogState) || 'idle';
-const outfit: Outfit = { neck: q.get('neck') || 'bandana-red', head: q.get('head') || 'none' };
+const outfit: Outfit = { neck: q.get('neck') || NO_OUTFIT.neck, head: q.get('head') || NO_OUTFIT.head };
 const ageLabel = (a: number) => (a < 0.25 ? '子犬' : a < 0.75 ? '若犬' : '成犬');
 function applyOutfit() {
   dog.setOutfit(outfit);
@@ -84,7 +84,8 @@ function applyOutfit() {
 const ageEl = document.querySelector<HTMLInputElement>('#age')!;
 ageEl.value = q.get('age') || '0';
 const setAge = () => { dog.setAge(+ageEl.value); shadowG.scale.set(0.74 + 0.26 * +ageEl.value); document.querySelector('#ageLabel')!.textContent = ageLabel(+ageEl.value); };
-ageEl.addEventListener('input', setAge);
+ageEl.addEventListener('change', setAge);
+ageEl.addEventListener('input', () => { document.querySelector('#ageLabel')!.textContent = ageLabel(+ageEl.value); });
 for (const slot of ['neck', 'head'] as const)
   document.querySelector(`#${slot}`)!.addEventListener('click', e => {
     const v = (e.target as HTMLElement).closest('button')?.dataset.v;
@@ -117,7 +118,7 @@ pixi.ticker.add(tk => {
   if (acc >= 1) {
     document.querySelector('#meter')!.innerHTML =
       `<dt>描画</dt><dd>${(frames / acc).toFixed(0)} fps（端末 ${DPR}x）</dd>` +
-      `<dt>生成時間</dt><dd>${genMs.toFixed(0)} ms（起動時に毛並みを描画）</dd>` +
+      `<dt>描画時間</dt><dd>起動 ${genMs.toFixed(0)} ms／直近の組み立て ${dog.lastBuildMs.toFixed(0)} ms</dd>` +
       `<dt>GPUメモリ</dt><dd>約 ${(dog.texturePixels * 4 / 1048576).toFixed(1)} MB</dd>`;
     frames = 0; acc = 0;
   }
