@@ -99,5 +99,13 @@ src/platform/  保存・音・入力・PWA・触覚
 - デプロイ：`.github/workflows/deploy.yml`（main への push でテスト→ビルド→Pages）。**リポジトリ設定で Pages のソースを「GitHub Actions」にする必要がある（未設定・未確認）。** Action のバージョンは既知の安定版を指定しており、最新版かは未確認。
 - 環境メモ：Playwright は `/opt/pw-browsers/chromium` を executablePath で使う（`CHROMIUM_PATH` 環境変数）。download.blender.org はこの環境のネットワーク方針で遮断、PyPI（`bpy` ホイール）は到達可能。
 
-### 次：第2段階 犬の表現方式の比較
-- ユーザーの承認が必要。
+### 第2段階 犬の表現方式の比較 — 試作完了・ユーザーの選択待ち（2026-09-25）
+- 犬種：**黒柴**（ユーザー指定）。
+- 比較ページ：`lab/dog.html`（`src/lab/`）。方式・5状態の切替、FPS・GPUメモリ・容量の表示。犬をタップでなでられ。
+- 案A 3D→スプライト：`art/dog3d/`（bpy 5.0.1 で手続きモデリング＋パーティクルの毛＋骨アニメ → Cycles）。
+  12fps・174コマ・349×350px、WebP 計1.4MB、GPU展開 約97MB。状態切替は0.2秒のクロスフェードのみ。
+  既知の問題：しょんぼり時に尾の付け根に小さな潰れ、眠り姿勢の脚が不自然、光が焼き込み。
+- 案B 2Dボーン：`src/lab/dog2d*.ts`・`fur-painter.ts`。毛並みを Canvas2D で起動時に描画（約50ms・GPU 約1MB・画像なし）。
+  ばねで状態間を補間。しょんぼりでは垂れた尾のパーツに入れ替える。
+- 案C 手描き／AI生成：画像生成手段がなく外部素材サイトにも接続できないため未試作。
+- 未確認：iPhone / Android 実機での見た目・FPS（ヘッドレス Chromium のソフトウェア描画では 13〜22fps で参考にならない）。
