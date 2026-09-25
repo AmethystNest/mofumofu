@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 仮アイコン：一人分の配給箱を、二つに分ける -->
+  <rect width="512" height="512" fill="#20262B"/>
+  <rect x="136" y="176" width="240" height="190" rx="10" fill="#E8A33D"/>
+  <rect x="136" y="176" width="240" height="44" rx="10" fill="#C98A2C"/>
+  <line x1="256" y1="150" x2="256" y2="392" stroke="#20262B" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="256" cy="120" r="10" fill="#7FC8C2"/>
+</svg>

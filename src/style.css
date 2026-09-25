@@ -1,0 +1,16 @@
+/* 第1段階の仮画面。本番のUIは第3段階（縦切り版）で作る。 */
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: #161B20; color: #E9E4D8;
+  font-family: "Hiragino Mincho ProN", "Noto Serif CJK JP", "Noto Serif JP", "Yu Mincho", serif;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  -webkit-text-size-adjust: 100%;
+}
+#app { max-width: 420px; margin: 0 auto; }
+h1 { font-size: 34px; letter-spacing: .12em; margin: 8px 0 24px; }
+h1 span { color: #E8A33D; }
+p { line-height: 2; margin: 0 0 12px; font-size: 15px; }
+p.ai { font-family: system-ui, sans-serif; font-size: 13px; color: #7FC8C2; border-left: 2px solid #7FC8C2; padding-left: 10px; line-height: 1.7; }
+.dev { margin-top: 32px; padding-top: 12px; border-top: 1px solid #3C454C; font: 12px/1.6 system-ui, sans-serif; color: #9AA3A6; }
