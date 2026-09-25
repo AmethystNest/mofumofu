@@ -83,3 +83,24 @@ describe('首まわりの着せ替え', () => {
     expect(bad).toEqual([]);
   });
 });
+
+describe('顔の配置', () => {
+  it('全成長段階で、眉は目の真上・鼻は目より十分下・目は頭の内側', () => {
+    const bad: string[] = [];
+    for (let age = 0; age <= 1.0001; age += 0.05) {
+      const L = P.layout(age);
+      const piv = P.pivots(L);
+      const headPoly = smooth(P.head(L).outline).map(p => apply(L.head, p));
+      const hs = L.headScale;
+      for (const [eye, brow] of [[piv.eyeL, piv.browL], [piv.eyeR, piv.browR]] as [Pt, Pt][]) {
+        if (Math.abs(brow[0] - eye[0]) > 8 * hs) bad.push(`age=${age.toFixed(2)} 眉が目の真上にない dx=${(brow[0] - eye[0]).toFixed(1)}`);
+        const dy = eye[1] - brow[1];
+        if (dy < 16 * hs || dy > 26 * hs) bad.push(`age=${age.toFixed(2)} 眉と目の間隔 ${dy.toFixed(1)}`);
+        if (piv.nose[1] - eye[1] < 20 * hs) bad.push(`age=${age.toFixed(2)} 鼻が目に近い ${(piv.nose[1] - eye[1]).toFixed(1)}`);
+        if (!inside(headPoly, eye)) bad.push(`age=${age.toFixed(2)} 目が頭の外`);
+      }
+      if (Math.abs(piv.eyeL[1] - piv.eyeR[1]) > 4) bad.push(`age=${age.toFixed(2)} 左右の目の高さの差 ${(piv.eyeL[1] - piv.eyeR[1]).toFixed(1)}`);
+    }
+    expect(bad).toEqual([]);
+  });
+});
