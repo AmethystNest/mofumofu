@@ -45,6 +45,8 @@ export interface PartSpec {
   sharp?: boolean;
   /** 下のパーツに落とす影の濃さ（0〜1） */
   shadow?: number;
+  /** 縁の内側の縫い目（inset：縁からの距離、設計単位） */
+  stitch?: { inset: number; color: string; dash?: [number, number]; width?: number };
   xf?: Xf;
   seed?: number;
 }
@@ -326,6 +328,25 @@ export function paint(spec: PartSpec, scale: number): Painted {
       ctx.stroke();
     }
     ctx.globalCompositeOperation = 'source-over';
+  }
+  // 縫い目：なめらかな輪郭を内側へ inset だけずらした線を点線で
+  if (spec.stitch) {
+    const st = spec.stitch;
+    let area = 0;
+    for (let i = 0; i < base.length; i++) { const a = base[i]!, b = base[(i + 1) % base.length]!; area += a[0] * b[1] - b[0] * a[1]; }
+    const sg = area > 0 ? -1 : 1;
+    const off = base.map((p, i) => {
+      const a = base[(i - 1 + base.length) % base.length]!, b = base[(i + 1) % base.length]!;
+      const tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1;
+      return [p[0] + (ty / tl) * sg * st.inset, p[1] - (tx / tl) * sg * st.inset] as Pt;
+    });
+    ctx.save();
+    ctx.setLineDash(st.dash ?? [2.2, 1.6]);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = st.color;
+    ctx.lineWidth = st.width ?? 0.7;
+    ctx.stroke(polyPath(off));
+    ctx.restore();
   }
   if (spec.post) withXf(ctx, spec.post);
 
