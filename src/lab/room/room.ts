@@ -4,6 +4,7 @@
  */
 import { Container, Sprite, Texture } from 'pixi.js';
 import { blob, paint, rng, type PartSpec, type Pt } from '../shiba/painter';
+import { fillMotif, fold, weave, type Fabric } from '../shiba/cloth';
 
 export const RW = 390, RH = 351, FLOOR = 262;
 /** 天井の明かりの位置（x） */
@@ -99,7 +100,7 @@ function windowFrame(): PartSpec[] {
     flat('windowFrame', [[x - 6, y - 6], [x + w + 6, y - 6], [x + w + 6, y + h + 6], [x - 6, y + h + 6], [x - 6, y - 6], [x, y], [x, y + h], [x + w, y + h], [x + w, y], [x, y]],
       'rgb(64,56,50)', { line: 1.4 }),
     flat('windowBar', rect(x + w / 2 - 2.5, y, 5, h), 'rgb(64,56,50)', { line: 1.2 }),
-    flat('windowSill', rect(x - 12, y + h + 5, w + 24, 9), 'rgb(92,80,70)', { line: 1.6 }),
+    flat('windowSill', rect(x - 12, y + h + 5, w + 24, 9), 'rgb(92,80,70)', { line: 1.1 }),
   ];
 }
 type Pt3 = [number, number, number];
@@ -107,29 +108,37 @@ type Pt3 = [number, number, number];
 /* ---------------- デコ ---------------- */
 function curtain(color: string, deep: string): PartSpec[] {
   const drape = (name: string, x0: number, dir: 1 | -1): PartSpec => soft(name,
-    [[x0, 22], [x0 + dir * 34, 22], [x0 + dir * 26, 90], [x0 + dir * 34, 176], [x0, 178]], color, {
+    [[x0, 22], [x0 + dir * 34, 22], [x0 + dir * 24, 96], [x0 + dir * 12, 118], [x0 + dir * 30, 176], [x0, 178]], color, {
+      radius: 5,
       marks: ctx => {
-        for (let i = 0; i < 4; i++) {
-          const xx = x0 + dir * (5 + i * 8);
-          const g = ctx.createLinearGradient(xx - 4, 0, xx + 4, 0);
-          g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, deep); g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = g; ctx.fillRect(xx - 4, 22, 8, 160);
-        }
+        weave(ctx, [x0 - 40, 20, x0 + 40, 180], x0, 0.08);
+        for (let i = 0; i < 4; i++) fold(ctx, [x0 + dir * (6 + i * 7), 24], [x0 + dir * (4 + i * 6), 176], 2.2, 0.28);
+        const g = ctx.createLinearGradient(0, 22, 0, 60);
+        g.addColorStop(0, deep); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.fillRect(x0 - 40, 22, 80, 40);
       },
+      stitch: { inset: 2.2, color: 'rgba(255,255,255,0.35)', dash: [1.6, 1.4], width: 0.5 },
     });
-  return [drape('curtainL', 14, 1), drape('curtainR', 188, -1), flat('curtainRod', rect(8, 18, 186, 5), 'rgb(80,68,58)', { line: 1.2 })];
+  const tie = (name: string, x: number) => soft(name, [[x - 8, 112], [x + 8, 110], [x + 9, 120], [x - 7, 122]], deep.replace(/[\d.]+\)$/, '1)'), { radius: 2 });
+  return [drape('curtainL', 14, 1), drape('curtainR', 188, -1), tie('tieL', 24), tie('tieR', 178),
+    flat('curtainRod', rect(8, 18, 186, 5), 'rgb(80,68,58)', { line: 1, radius: 2 })];
 }
 function plant(): PartSpec[] {
   const leaves: PartSpec[] = [];
   const r = rng(3);
-  for (let i = 0; i < 7; i++) {
-    const a = -Math.PI / 2 + (i - 3) * 0.38, L = 22 + r() * 10;
+  for (let i = 0; i < 9; i++) {
+    const a = -Math.PI / 2 + (i - 4) * 0.33, L = 20 + r() * 12;
     const cx = 150 + Math.cos(a) * L * 0.6, cy = 150 + Math.sin(a) * L * 0.6;
-    leaves.push(soft(`leaf${i}`, ellipsePts(cx, cy, L * 0.5, 7, 10).map(([px, py]) => {
-      const dx = px - cx, dy = py - cy; return [cx + dx * Math.cos(a) - dy * Math.sin(a), cy + dx * Math.sin(a) + dy * Math.cos(a)] as Pt;
-    }), i % 2 ? 'rgb(96,140,84)' : 'rgb(118,160,96)', { line: 1.4 }));
+    const rot = (px: number, py: number): Pt => { const dx = px - cx, dy = py - cy; return [cx + dx * Math.cos(a) - dy * Math.sin(a), cy + dx * Math.sin(a) + dy * Math.cos(a)]; };
+    const tip = rot(cx + L * 0.5, cy), base = rot(cx - L * 0.5, cy);
+    leaves.push(soft(`leaf${i}`, [rot(cx - L * 0.5, cy), rot(cx - L * 0.1, cy - 7), rot(cx + L * 0.3, cy - 5), rot(cx + L * 0.5, cy), rot(cx + L * 0.3, cy + 5), rot(cx - L * 0.1, cy + 7)],
+      i % 2 ? 'rgb(88,132,78)' : 'rgb(112,156,92)', { line: 0.9, radius: 4, post: ctx => {
+        ctx.strokeStyle = 'rgba(210,236,190,0.55)'; ctx.lineWidth = 0.6;
+        ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(tip[0], tip[1]); ctx.stroke();
+      } }));
   }
-  return [...leaves, flat('pot', [[136, 150], [164, 150], [160, 172], [140, 172]], 'rgb(186,104,70)', { line: 1.6 })];
+  return [...leaves, flat('pot', [[134, 150], [166, 150], [161, 173], [139, 173]], 'rgb(180,100,66)', { line: 1, radius: 5,
+    marks: ctx => { ctx.fillStyle = 'rgba(80,40,20,0.35)'; ctx.fillRect(134, 150, 32, 4); weave(ctx, [134, 150, 166, 174], 8, 0.05); } })];
 }
 function poster(): PartSpec[] {
   return [flat('poster', [[258, 44], [338, 40], [342, 142], [260, 146]], 'rgb(232,220,196)', {
@@ -138,7 +147,11 @@ function poster(): PartSpec[] {
       ctx.fillStyle = 'rgb(96,124,132)'; ctx.beginPath(); ctx.moveTo(264, 124); ctx.lineTo(292, 88); ctx.lineTo(312, 110); ctx.lineTo(324, 96); ctx.lineTo(340, 124); ctx.fill();
       ctx.fillStyle = 'rgba(60,50,40,.6)'; ctx.fillRect(272, 130, 56, 3); ctx.fillRect(280, 136, 40, 2);
       ctx.fillStyle = 'rgba(200,190,170,.5)'; for (const [x, y] of [[258, 40], [334, 36], [256, 138], [336, 138]] as Pt[]) ctx.fillRect(x, y, 10, 8);
+      weave(ctx, [256, 38, 344, 148], 12, 0.05);
+      const g = ctx.createRadialGradient(300, 92, 10, 300, 92, 70); g.addColorStop(0, 'rgba(255,250,235,0)'); g.addColorStop(1, 'rgba(140,110,70,0.3)');
+      ctx.fillStyle = g; ctx.fillRect(250, 34, 100, 118);
     },
+    radius: 3,
   })];
 }
 function clock(): PartSpec[] {
@@ -173,44 +186,64 @@ function light(id: string): PartSpec[] {
 }
 export const LIGHT_COLOR: Record<string, [number, number]> = { bulb: [0xffd08a, 0.34], lantern: [0xffb45e, 0.38], paper: [0xfff0d0, 0.3] };
 
+const PLAID: Fabric = { base: 'rgb(170,68,60)', motif: 'check', motifColor: 'rgb(242,220,200)', shade: 'rgb(90,30,30)', light: 'rgb(220,120,100)' };
+const KILIM: Fabric = { base: 'rgb(196,166,118)', motif: 'dots', motifColor: 'rgb(150,76,58)', shade: 'rgb(110,80,50)', light: 'rgb(230,210,170)' };
+
 function bed(id: string): PartSpec[] {
   if (id === 'box') return [
-    flat('boxBack', [[18, 252], [110, 252], [116, 236], [24, 236]], 'rgb(170,128,84)', { line: 1.6 }),
-    flat('boxFront', rect(14, 252, 102, 48), 'rgb(196,150,100)', { line: 1.8, marks: ctx => {
-      ctx.strokeStyle = 'rgba(90,60,30,.5)'; ctx.lineWidth = 1; ctx.strokeRect(40, 262, 50, 14);
-      ctx.fillStyle = 'rgba(90,60,30,.45)'; ctx.font = '8px sans-serif'; ctx.fillText('配給 1', 50, 272);
+    flat('boxBack', [[18, 252], [110, 252], [116, 236], [24, 236]], 'rgb(164,122,80)', { line: 1, radius: 3,
+      marks: ctx => { ctx.strokeStyle = 'rgba(90,60,30,0.25)'; ctx.lineWidth = 0.5; for (let x = 20; x < 118; x += 2.4) { ctx.beginPath(); ctx.moveTo(x, 236); ctx.lineTo(x - 2, 252); ctx.stroke(); } } }),
+    flat('boxFront', rect(14, 252, 102, 48), 'rgb(196,152,102)', { line: 1.1, radius: 3, marks: ctx => {
+      ctx.strokeStyle = 'rgba(110,76,40,0.18)'; ctx.lineWidth = 0.6;
+      for (let x = 15; x < 116; x += 2.6) { ctx.beginPath(); ctx.moveTo(x, 252); ctx.lineTo(x, 300); ctx.stroke(); }   // 段ボールの波目
+      ctx.fillStyle = 'rgba(230,214,170,0.75)'; ctx.fillRect(56, 252, 16, 48);                                       // ガムテープ
+      ctx.strokeStyle = 'rgba(150,60,50,0.6)'; ctx.lineWidth = 1; ctx.strokeRect(24, 262, 28, 14);
+      ctx.fillStyle = 'rgba(150,60,50,0.65)'; ctx.font = 'bold 7px sans-serif'; ctx.fillText('配給', 27, 272);
+      ctx.fillStyle = 'rgba(80,56,30,0.55)'; ctx.font = '6px sans-serif'; ctx.fillText('No.0417 1名分', 66, 293);
     } }),
-    soft('boxTowel', [[20, 250], [60, 242], [108, 248], [104, 258], [24, 258]], 'rgb(214,206,190)', { line: 1.4 }),
+    soft('boxTowel', [[20, 250], [44, 240], [70, 244], [108, 246], [104, 258], [24, 258]], 'rgb(214,206,190)', { line: 1, radius: 4,
+      marks: ctx => { weave(ctx, [18, 238, 110, 260], 5, 0.1); fold(ctx, [44, 242], [52, 256], 1.6, 0.3); fold(ctx, [84, 246], [90, 257], 1.4, 0.3); } }),
   ];
-  if (id === 'cushion') return [soft('cushion', ellipsePts(66, 280, 58, 22, 18), 'rgb(176,74,64)', { marks: ctx => {
-    ctx.strokeStyle = 'rgba(255,230,210,.35)'; ctx.lineWidth = 2;
-    for (let x = 12; x < 124; x += 12) { ctx.beginPath(); ctx.moveTo(x, 256); ctx.lineTo(x, 304); ctx.stroke(); }
-    for (let y = 262; y < 304; y += 12) { ctx.beginPath(); ctx.moveTo(8, y); ctx.lineTo(126, y); ctx.stroke(); }
-    blob(ctx, 60, 272, 38, 10, 'rgb(210,110,96)', 0, 0.8);
-  } })];
-  return [soft('blanketNest', [[10, 288], [24, 262], [66, 254], [112, 262], [124, 290], [96, 306], [36, 306]], 'rgb(110,126,138)', { line: 1.8, marks: ctx => {
-    ctx.strokeStyle = 'rgba(40,50,60,.35)'; ctx.lineWidth = 2;
-    for (const [a, b, c, d] of [[20, 272, 60, 290], [60, 262, 90, 296], [96, 268, 116, 292]] as [number, number, number, number][]) { ctx.beginPath(); ctx.moveTo(a, b); ctx.quadraticCurveTo((a + c) / 2 + 10, (b + d) / 2, c, d); ctx.stroke(); }
-    blob(ctx, 66, 286, 34, 9, 'rgb(84,98,110)', 0, 0.8);
-  } })];
+  if (id === 'cushion') return [soft('cushion', ellipsePts(66, 280, 58, 22, 18), PLAID.base, { radius: 12, volume: 1.2, marks: ctx => {
+    fillMotif(ctx, PLAID, 16, 0.08, [8, 258]);
+    weave(ctx, [6, 256, 126, 304], 9, 0.07);
+    fold(ctx, [30, 266], [46, 282], 1.6, 0.25); fold(ctx, [100, 268], [86, 284], 1.6, 0.25);
+  }, stitch: { inset: 3, color: 'rgba(255,236,220,0.5)', dash: [1.6, 1.4], width: 0.55 },
+  post: ctx => { const g = ctx.createRadialGradient(64, 278, 0, 64, 278, 5); g.addColorStop(0, 'rgb(120,40,36)'); g.addColorStop(1, 'rgba(120,40,36,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(64, 278, 5, 0, Math.PI * 2); ctx.fill(); } })];
+  return [soft('blanketNest', [[10, 288], [24, 262], [66, 254], [112, 262], [124, 290], [96, 306], [36, 306]], 'rgb(106,122,136)', { line: 1.1, radius: 10, marks: ctx => {
+    weave(ctx, [8, 252, 126, 308], 21, 0.1);
+    for (const [a, b] of [[[20, 272], [60, 292]], [[60, 262], [90, 298]], [[96, 268], [116, 292]], [[40, 300], [80, 290]]] as [Pt, Pt][]) fold(ctx, a, b, 2.4, 0.3);
+    blob(ctx, 66, 286, 34, 9, 'rgb(80,94,106)', 0, 0.8);
+  }, stitch: { inset: 2.4, color: 'rgba(230,230,220,0.45)', dash: [2, 1.6], width: 0.6 } })];
 }
 function rug(id: string): PartSpec[] {
-  if (id === 'rug-round') return [soft('rug', ellipsePts(222, 312, 118, 26, 20), 'rgb(196,168,120)', { line: 1.4, shade: 0.3, marks: ctx => {
-    for (const [ry, c] of [[20, 'rgb(170,96,72)'], [14, 'rgb(214,190,146)'], [8, 'rgb(96,120,120)']] as [number, string][]) blob(ctx, 222, 312, ry * 5.2, ry * 1.1, c, 0, 0.1);
+  if (id === 'rug-round') return [soft('rug', ellipsePts(222, 312, 118, 26, 20), 'rgb(196,168,120)', { line: 1, shade: 0.35, radius: 6, marks: ctx => {
+    for (const [ry, c] of [[20, 'rgb(164,90,68)'], [16, 'rgb(214,190,146)'], [12, 'rgb(92,116,116)'], [7, 'rgb(214,190,146)']] as [number, string][]) blob(ctx, 222, 312, ry * 5.2, ry * 1.1, c, 0, 0.08);
+    ctx.save(); ctx.globalAlpha = 0.35; fillMotif(ctx, KILIM, 9, 0, [100, 280]); ctx.restore();
+    weave(ctx, [100, 284, 344, 340], 17, 0.12);
+  }, post: ctx => {   // 房飾り
+    ctx.strokeStyle = 'rgba(230,214,180,0.8)'; ctx.lineWidth = 0.6;
+    for (let t = 0; t < Math.PI * 2; t += 0.07) { const x = 222 + Math.cos(t) * 118, y = 312 + Math.sin(t) * 26; if (Math.sin(t) < -0.2) continue; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(t) * 3, y + Math.sin(t) * 3 + 1); ctx.stroke(); }
   } })];
-  return [flat('tatami', [[120, 290], [336, 290], [352, 338], [104, 338]], 'rgb(184,178,120)', { line: 1.6, shade: 0.3, marks: ctx => {
-    ctx.strokeStyle = 'rgba(120,110,60,.35)'; ctx.lineWidth = 1;
-    for (let y = 293; y < 338; y += 3) { ctx.beginPath(); ctx.moveTo(100, y); ctx.lineTo(356, y); ctx.stroke(); }
-    ctx.fillStyle = 'rgb(60,70,56)'; ctx.fillRect(100, 290, 256, 5); ctx.fillRect(100, 334, 256, 5);
+  return [flat('tatami', [[120, 290], [336, 290], [352, 338], [104, 338]], 'rgb(184,178,120)', { line: 1.1, shade: 0.35, radius: 3, marks: ctx => {
+    ctx.strokeStyle = 'rgba(120,110,60,.35)'; ctx.lineWidth = 0.7;
+    for (let y = 292; y < 338; y += 2.2) { ctx.beginPath(); ctx.moveTo(100, y); ctx.lineTo(356, y); ctx.stroke(); }
+    weave(ctx, [100, 290, 356, 338], 13, 0.08);
+    ctx.fillStyle = 'rgb(56,66,54)'; ctx.fillRect(100, 290, 256, 5); ctx.fillRect(100, 333, 256, 6);
+    ctx.fillStyle = 'rgba(210,200,150,0.35)'; for (let x = 104; x < 352; x += 8) { ctx.fillRect(x, 291, 3, 3); ctx.fillRect(x + 4, 335, 3, 3); }
   } })];
 }
 function toy(id: string): PartSpec[] {
-  if (id === 'ball') return [soft('ball', ellipsePts(346, 300, 13, 13, 12), 'rgb(166,76,60)', { post: ctx => {
-    ctx.strokeStyle = 'rgba(230,214,180,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(334, 296); ctx.quadraticCurveTo(346, 306, 358, 296); ctx.stroke();
-  } })];
-  return [soft('plushBody', [[322, 300], [340, 288], [362, 292], [368, 304], [350, 314], [330, 312]], 'rgb(120,170,190)', { line: 1.8 }),
-    soft('plushTail', [[318, 302], [306, 290], [308, 314]], 'rgb(100,150,172)', { line: 1.6 }),
-    soft('plushEye', ellipsePts(356, 298, 2.4, 2.4, 8), 'rgb(30,26,24)', { line: 0, shade: 0 })];
+  if (id === 'ball') return [soft('ball', ellipsePts(346, 300, 13, 13, 12), 'rgb(160,72,58)', { radius: 12, volume: 1.2, marks: ctx => weave(ctx, [332, 286, 360, 314], 4, 0.12),
+    post: ctx => {
+      ctx.strokeStyle = 'rgba(232,216,184,.9)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(334, 296); ctx.quadraticCurveTo(346, 306, 358, 296); ctx.stroke();
+      ctx.setLineDash([1, 1.2]); ctx.strokeStyle = 'rgba(90,40,30,.7)'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(334, 293); ctx.quadraticCurveTo(346, 303, 358, 293); ctx.stroke(); ctx.setLineDash([]);
+    } })];
+  return [soft('plushBody', [[322, 300], [340, 288], [362, 292], [368, 304], [350, 314], [330, 312]], 'rgb(116,166,188)', { line: 1.1, radius: 8, volume: 1.1,
+    marks: ctx => { weave(ctx, [318, 286, 370, 316], 6, 0.1); blob(ctx, 346, 308, 14, 4, 'rgb(236,228,210)', 0, 0.7); },
+    stitch: { inset: 1.6, color: 'rgba(40,60,70,0.6)', dash: [1, 1], width: 0.5 } }),
+    soft('plushTail', [[318, 302], [306, 290], [308, 314]], 'rgb(96,146,170)', { line: 1, radius: 4 }),
+    soft('plushEye', ellipsePts(356, 298, 2.4, 2.4, 8), 'rgb(30,26,24)', { line: 0, shade: 0, post: ctx => { ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(355.3, 297.2, 0.7, 0, Math.PI * 2); ctx.fill(); } })];
 }
 
 export function decorParts(slot: Slot, id: string): PartSpec[] {
