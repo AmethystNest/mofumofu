@@ -7,7 +7,10 @@ const base = process.env.BASE_PATH ?? '/';
 
 export default defineConfig({
   base,
-  build: { target: ['es2022', 'safari16'] },
+  build: {
+    target: ['es2022', 'safari16'],
+    rollupOptions: { input: { main: 'index.html', lab: 'lab/dog.html' } },
+  },
   plugins: [
     VitePWA({
       // 新しい版は、開いているタブがすべて閉じられてから有効になる（プレイ中に勝手に再読み込みしない）
@@ -32,8 +35,12 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2,json,ink,mp3,m4a,ogg}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,json,ink,mp3,m4a,ogg}'],
+        // 比較用の大きなスプライトは事前キャッシュしない
+        globIgnores: ['lab/**'],
         navigateFallback: 'index.html',
+        // 比較ページなど index.html 以外のページへの遷移は、トップページで代替しない
+        navigateFallbackDenylist: [/\/lab\//],
       },
     }),
   ],

@@ -5,3 +5,7 @@ dev-dist/
 .DS_Store
 test-results/
 playwright-report/
+
+# 3D犬の中間生成物
+art/dog3d/*.npz
+__pycache__/
