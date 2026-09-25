@@ -11,11 +11,23 @@ export const R = (x: number, y: number): Pt => [(x - 270) * 0.5, (y - 700) * 0.5
 const RS = (pts: Pt[]): Pt[] => pts.map(([x, y]) => R(x, y));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/**
+ * 顔の配置表（作画座標）。目・眉・鼻・口・頬と、頭に描く模様は全部ここから位置を取る。
+ * 参考画像より顔の傾きを取り除き、目はほぼ水平・眉は目の真上（やや内側）・鼻は目から離す。
+ */
+export const FACE = {
+  eyeL: [170, 220] as Pt, eyeR: [304, 224] as Pt,
+  browL: [178, 178] as Pt, browR: [294, 182] as Pt,
+  nose: [236, 274] as Pt, snout: [238, 294] as Pt,
+  cheekL: [120, 300] as Pt, cheekR: [360, 304] as Pt,
+};
+
 export const COL = {
   black: 'rgb(0,0,0)',
   cream: 'rgb(252,238,220)',
   creamShade: 'rgb(238,218,194)',
-  tan: 'rgb(214,140,72)',
+  tan: 'rgb(142,78,38)',        // 赤茶：控えめで黒寄り（ユーザー指定）
+  brow: 'rgb(214,176,128)',     // 麻呂眉：淡い黄土
   innerEar: 'rgb(244,214,196)',
 };
 
@@ -87,7 +99,7 @@ export function layout(age: number): Layout {
     return compose(head, scaleAt(r0, lerp(1, 1.1, a), lerp(1, 1.3, a), r1));
   };
   const earL = earXf('L'), earR = earXf('R');
-  const muzzle = compose(head, scaleAt(R(236, 250), lerp(1, 1.12, a), lerp(1, 1.34, a)));
+  const muzzle = compose(head, scaleAt(R(236, 264), lerp(1, 1.12, a), lerp(1, 1.34, a)));
   // 首まわり：結び目を「頭の座標で見たあごの下の点」に固定し、幅は頭の大きさに比例させる。
   // 子犬で収まりの良い配置を、どの成長段階でも頭に対して同じ関係に保つ（両端は頬の毛の下）
   const knot = R(205, 420);
@@ -106,12 +118,14 @@ export function head(L: Layout): PartSpec {
     outline: RS(morph(HEAD_PUPPY, HEAD_ADULT, L.age)),
     flow: away(245, 250),
     marks: ctx => img(ctx, b => {
-      b(92, 262, 70, 90, COL.tan, 0.2, 0.55);
-      b(400, 296, 60, 80, COL.tan, -0.2, 0.55);
-      b(240, 322, 188, 88, COL.tan, 0.12, 0.4);
-      b(242, 326, 170, 80, COL.cream, 0.12, 0.35);
-      b(236, 268, 50, 40, COL.cream, 0.1, 0.5);
-      b(246, 374, 130, 30, COL.creamShade, 0.1, 0.6);
+      const F = FACE, ey = (F.eyeL[1] + F.eyeR[1]) / 2;
+      // 頬の外側にだけ控えめな赤茶。白い口元は目のすぐ下から始まる
+      b(F.eyeL[0] - 76, ey + 44, 48, 64, COL.tan, 0.2, 0.6);
+      b(F.eyeR[0] + 76, ey + 48, 44, 60, COL.tan, -0.2, 0.6);
+      b(F.nose[0] + 2, ey + 102, 176, 86, COL.tan, 0, 0.45);
+      b(F.nose[0] + 4, ey + 106, 164, 80, COL.cream, 0, 0.35);
+      b(F.nose[0], F.nose[1] - 8, 46, 40, COL.cream, 0, 0.5);     // 鼻筋
+      b(F.nose[0] + 8, ey + 152, 130, 30, COL.creamShade, 0, 0.6);
     }),
   };
 }
@@ -120,8 +134,8 @@ export function muzzle(L: Layout): PartSpec {
   return {
     name: 'muzzle', xf: L.muzzle, base: COL.cream, len: 2.5, density: 8, line: 0, radius: 12, shade: 0.9,
     tuft: { step: 5, amp: 0.9 },
-    outline: RS([[186, 252], [236, 234], [290, 250], [306, 290], [280, 324], [236, 334], [192, 322], [172, 290]]),
-    flow: away(238, 250),
+    outline: RS([[186, 266], [236, 250], [290, 266], [306, 306], [280, 340], [236, 350], [192, 338], [172, 306]]),
+    flow: away(238, 266),
   };
 }
 
@@ -135,7 +149,7 @@ export function ear(side: 'L' | 'R', L: Layout): PartSpec {
     tuft: { step: 6, amp: 1.5, lean: 0.3 },
     outline: RS(pts), flow: down,
     marks: ctx => img(ctx, b => {
-      b(inner[0], inner[1], inner[2] + 12, inner[3] + 12, COL.tan, inner[4], 0.55);
+      b(inner[0], inner[1], inner[2] + 6, inner[3] + 6, COL.tan, inner[4], 0.6);
       b(inner[0], inner[1] + 4, inner[2], inner[3], COL.innerEar, inner[4], 0.5);
     }),
   };
@@ -148,9 +162,8 @@ export function body(L: Layout): PartSpec {
     outline: RS([[70, 410], [200, 392], [330, 388], [432, 420], [496, 500], [506, 600], [482, 668], [424, 690], [364, 676], [326, 604], [252, 610], [184, 604], [112, 594], [62, 572], [36, 540], [42, 468]]),
     flow: (x, y) => (y > -60 ? [0.05, 1] : [x > 20 ? 0.6 : -0.4, 1]),
     marks: ctx => img(ctx, b => {
-      b(196, 526, 150, 150, COL.tan, 0, 0.5);
+      b(196, 526, 140, 140, COL.tan, 0, 0.55);
       b(196, 530, 128, 132, COL.cream, 0, 0.45);
-      b(330, 660, 120, 40, COL.tan, 0, 0.6);
     }),
   };
 }
@@ -166,7 +179,7 @@ function leg(name: string, cx: number, w: number, top: number, dark = 0): PartSp
     tuft: { step: 6, amp: 1.4, lean: 0.4 },
     outline: pts, flow: down,
     marks: ctx => {
-      blob(ctx, cx, (tanTop + 4) / 2, w * 0.62, Math.abs(tanTop - 4) / 2 + 6, COL.tan, 0, 0.35);
+      blob(ctx, cx, (tanTop * 0.6 + 4) / 2, w * 0.5, Math.abs(tanTop * 0.6 - 4) / 2 + 4, COL.tan, 0, 0.45);   // 脚の赤茶は下半分だけ
       blob(ctx, cx, 2, w * 0.6, 10, COL.cream, 0, 0.4);
       if (dark) { ctx.fillStyle = `rgba(0,0,0,${dark})`; ctx.fillRect(cx - w, top - 5, w * 2, -top + 20); }
     },
@@ -187,7 +200,7 @@ export function tail(L: Layout): PartSpec {
     outline: RS([[400, 338], [470, 318], [534, 348], [556, 420], [542, 492], [498, 532], [440, 522], [408, 470], [394, 400]]),
     flow: (x, y) => { const [cx, cy] = R(470, 430); return [-(y - cy), x - cx]; },
     marks: ctx => img(ctx, b => {
-      b(456, 440, 120, 150, COL.tan, -0.3, 0.55);
+      b(456, 440, 108, 138, COL.tan, -0.3, 0.6);
       b(452, 444, 100, 128, COL.black, -0.3, 0.5);
     }),
   };
@@ -372,8 +385,8 @@ export function pivots(L: Layout) {
   return {
     head: apply(L.head, [-10, -152]), neck: apply(L.neck, R(205, 420)),
     earL: apply(L.earL, R(...earRoot('L', 0))), earR: apply(L.earR, R(...earRoot('R', 0))), tail: apply(L.tail, R(420, 480)),
-    eyeL: H(186, 216), eyeR: H(312, 254), browL: H(214, 168), browR: H(318, 202),
-    nose: apply(L.muzzle, R(236, 258)), snout: apply(L.muzzle, R(238, 282)), cheekL: H(128, 300), cheekR: H(372, 330),
+    eyeL: H(...FACE.eyeL), eyeR: H(...FACE.eyeR), browL: H(...FACE.browL), browR: H(...FACE.browR),
+    nose: apply(L.muzzle, R(...FACE.nose)), snout: apply(L.muzzle, R(...FACE.snout)), cheekL: H(...FACE.cheekL), cheekR: H(...FACE.cheekR),
     frontL: [L.legs.front[0]!, 0] as Pt, frontR: [L.legs.front[1]!, 0] as Pt, hind: [L.legs.hind, 0] as Pt,
   };
 }

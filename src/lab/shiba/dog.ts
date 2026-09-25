@@ -207,10 +207,10 @@ export class ShibaDog {
     this.eyes[1]!.root.position.set(piv.eyeR[0] - piv.head[0], piv.eyeR[1] - piv.head[1]);
     for (const e of this.eyes) e.root.scale.set(L.eyeScale);
     const brow = (at: Pt, rot: number) => {
-      const g = new Graphics().ellipse(0, 0, 10.5, 6.5).fill(0xe0a86a).ellipse(1, 1.5, 8, 4.2).fill({ color: 0xf6d2a2, alpha: 0.8 });
+      const g = new Graphics().ellipse(0, 0, 10, 6).fill(0xc9a276).ellipse(0.6, 1.2, 7.6, 3.8).fill({ color: 0xdcbc92, alpha: 0.85 });
       g.position.set(at[0] - piv.head[0], at[1] - piv.head[1]); g.rotation = rot; g.scale.set(hs); this.headC.addChild(g); return g;
     };
-    this.browL = brow(piv.browL, rad(-8)); this.browR = brow(piv.browR, rad(14));
+    this.browL = brow(piv.browL, rad(-6)); this.browR = brow(piv.browR, rad(6));
     this.hatC = this.node(this.headC, piv.head, piv.head);
     this.dressHead();
     this.lastBuildMs = performance.now() - t0;
@@ -293,7 +293,7 @@ export class ShibaDog {
     const hs = this.L.headScale;
     this.browL.position.y = piv.browL[1] - piv.head[1] + (-3 * p.sad + 2 * p.happy) * hs;
     this.browR.position.y = piv.browR[1] - piv.head[1] + (-3 * p.sad + 2 * p.happy) * hs;
-    this.browL.rotation = rad(-8 + 22 * p.sad); this.browR.rotation = rad(14 - 22 * p.sad);
+    this.browL.rotation = rad(-6 + 20 * p.sad); this.browR.rotation = rad(6 - 20 * p.sad);
     this.mouth.draw(clamp01(p.mouthOpen + munch * 0.45), clamp01(p.tongue + p.munch * 0.3), clamp01(p.smile), clamp01(p.frown));
     this.blush.alpha = clamp01(p.blush);
   }
