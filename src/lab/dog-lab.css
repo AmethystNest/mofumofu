@@ -18,3 +18,8 @@ button.on { background: #E8A33D; border-color: #E8A33D; color: #20262B; font-wei
 .meter dt { color: #9AA3A6; } .meter dd { margin: 0; }
 .notes { border-top: 1px solid #3C454C; padding-top: 10px; font-size: 13px; }
 .notes p { margin: 0 0 6px; } .notes ul { margin: 0; padding-left: 1.2em; color: #C9C4B8; }
+.row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; }
+.row > span { flex: 0 0 auto; color: #9AA3A6; }
+.row input[type=range] { flex: 1; accent-color: #E8A33D; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { font-size: 12px; padding: 6px 9px; }

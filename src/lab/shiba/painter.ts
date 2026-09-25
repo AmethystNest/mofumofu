@@ -23,6 +23,10 @@ export interface PartSpec {
   shade?: number;
   /** 線の後に描く（口元など） */
   post?: (ctx: CanvasRenderingContext2D) => void;
+  /** 黒い毛のツヤと縁の反射光（純黒の地でも形が見えるように） */
+  sheen?: boolean;
+  /** 輪郭を曲線にせず、制御点を直線でつなぐ（家具など） */
+  sharp?: boolean;
   seed?: number;
 }
 
@@ -105,7 +109,7 @@ const MARGIN = 6;
 
 export function paint(spec: PartSpec, scale: number): Painted {
   const seed = spec.seed ?? spec.name.length * 97;
-  const base = smooth(spec.outline);
+  const base = spec.sharp ? spec.outline : smooth(spec.outline);
   const pts = spec.tuft ? tufted(base, spec.tuft, seed) : base;
   const path = polyPath(pts);
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
@@ -140,9 +144,18 @@ export function paint(spec: PartSpec, scale: number): Painted {
       const L = len * (0.55 + r() * 0.6);
       const k = r() < 0.5 ? 0.9 + r() * 0.07 : 1.04 + r() * 0.1;   // 暗い毛と明るい毛
       const c = (v: number) => Math.min(255, Math.round(v * k + (k > 1 ? 10 : 0)));
-      ctx.strokeStyle = `rgba(${c(img[j]!)},${c(img[j + 1]!)},${c(img[j + 2]!)},${0.35 + r() * 0.3})`;
+      const lum = img[j]! + img[j + 1]! + img[j + 2]!;
+      if (spec.sheen && lum < 60) {
+        // 純黒の地：光の当たる左上ほど明るい、青みのあるツヤの毛
+        const light = Math.max(0, Math.min(1, 0.5 - (x + y * 1.2 + 150) / 520));
+        const hi = k > 1 && r() < 0.18 + 0.5 * light;   // ツヤは光の当たる側に集める
+        const v = hi ? 34 + 80 * light : 8 + 10 * light;
+        ctx.strokeStyle = `rgba(${v | 0},${(v + 3) | 0},${(v + 9) | 0},${(hi ? 0.22 + 0.3 * light : 0.45) * (0.6 + r() * 0.4)})`;
+      } else {
+        ctx.strokeStyle = `rgba(${c(img[j]!)},${c(img[j + 1]!)},${c(img[j + 2]!)},${0.35 + r() * 0.3})`;
+      }
       ctx.lineWidth = 0.7 + r() * 0.9;
-      const ex = x + Math.cos(ang) * L, ey = y + Math.sin(ang) * L, bend = (r() - 0.5) * L * 0.3;
+      const ex = x + Math.cos(ang) * L, ey = y + Math.sin(ang) * L, bend = (r() - 0.5) * L * 0.14;
       ctx.beginPath(); ctx.moveTo(x, y);
       ctx.quadraticCurveTo((x + ex) / 2 - Math.sin(ang) * bend, (y + ey) / 2 + Math.cos(ang) * bend, ex, ey);
       ctx.stroke();
@@ -162,6 +175,15 @@ export function paint(spec: PartSpec, scale: number): Painted {
     ctx.lineJoin = 'round';
     ctx.strokeStyle = `rgba(30,18,14,${0.22 * sh})`;
     ctx.lineWidth = 7;
+    ctx.stroke(path);
+  }
+  if (spec.sheen) {
+    // 縁の反射光：左上の縁だけ淡く光らせる（暗い背景でも輪郭が読める）
+    const rg = ctx.createLinearGradient(bx0, by0, bx0 + (bx1 - bx0) * 0.75, by0 + (by1 - by0) * 0.75);
+    rg.addColorStop(0, 'rgba(178,184,200,0.55)');
+    rg.addColorStop(0.55, 'rgba(178,184,200,0)');
+    ctx.strokeStyle = rg;
+    ctx.lineWidth = 6;
     ctx.stroke(path);
   }
   ctx.restore();
