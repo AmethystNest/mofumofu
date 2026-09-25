@@ -22,9 +22,9 @@ export type Decor = Record<Slot, string>;
 export const DEFAULT_DECOR: Decor = { window: 'none', wall: 'none', light: 'bulb', bed: 'box', rug: 'none', toy: 'none' };
 
 const flat = (name: string, outline: Pt[], base: string, extra: Partial<PartSpec> = {}): PartSpec =>
-  ({ name, outline, base, tuft: null, sharp: true, line: 1.8, shade: 0.6, ...extra });
+  ({ name, outline, base, tuft: null, sharp: true, line: 1, lineDark: 0.5, shade: 0.7, radius: 4, ...extra });
 const soft = (name: string, outline: Pt[], base: string, extra: Partial<PartSpec> = {}): PartSpec =>
-  ({ name, outline, base, tuft: null, line: 1.8, shade: 0.7, ...extra });
+  ({ name, outline, base, tuft: null, line: 1, lineDark: 0.5, shade: 0.8, radius: 9, ...extra });
 const ellipsePts = (cx: number, cy: number, rx: number, ry: number, n = 14): Pt[] =>
   Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2; return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry] as Pt; });
 const rect = (x: number, y: number, w: number, h: number): Pt[] => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
@@ -32,7 +32,7 @@ const rect = (x: number, y: number, w: number, h: number): Pt[] => [[x, y], [x +
 /* ---------------- 部屋そのもの ---------------- */
 function wall(): PartSpec {
   return flat('wall', rect(0, 0, RW, FLOOR + 2), 'rgb(120,112,104)', {
-    line: 0, shade: 0,
+    line: 0, shade: 0, volume: 0,
     marks: ctx => {
       const g = ctx.createLinearGradient(0, 0, 0, FLOOR);
       g.addColorStop(0, 'rgb(92,86,82)'); g.addColorStop(1, 'rgb(132,122,112)');
@@ -54,7 +54,7 @@ function wall(): PartSpec {
 }
 function floor(): PartSpec {
   return flat('floor', rect(0, FLOOR, RW, RH - FLOOR), 'rgb(120,86,58)', {
-    line: 0, shade: 0,
+    line: 0, shade: 0, volume: 0,
     marks: ctx => {
       const r = rng(9);
       for (let y = FLOOR, row = 0; y < RH; y += 17, row++) {
@@ -81,7 +81,7 @@ function windowFrame(): PartSpec[] {
   const [x, y, w, h] = [26, 34, 150, 128];
   return [
     flat('windowGlass', rect(x, y, w, h), 'rgb(150,170,180)', {
-      line: 0, shade: 0,
+      line: 0, shade: 0, volume: 0,
       marks: ctx => {
         const g = ctx.createLinearGradient(0, y, 0, y + h);
         g.addColorStop(0, 'rgb(122,146,162)'); g.addColorStop(1, 'rgb(206,200,186)');
@@ -143,7 +143,7 @@ function poster(): PartSpec[] {
 }
 function clock(): PartSpec[] {
   return [soft('clock', ellipsePts(300, 92, 30, 30, 16), 'rgb(240,232,214)', {
-    line: 3, lineColor: 'rgba(60,44,36,.95)',
+    line: 2.2, lineDark: 0.7,
     post: ctx => {
       ctx.strokeStyle = 'rgba(40,30,26,.9)'; ctx.lineCap = 'round';
       for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; ctx.lineWidth = i % 3 ? 1 : 2; ctx.beginPath(); ctx.moveTo(300 + Math.cos(a) * 22, 92 + Math.sin(a) * 22); ctx.lineTo(300 + Math.cos(a) * 26, 92 + Math.sin(a) * 26); ctx.stroke(); }
