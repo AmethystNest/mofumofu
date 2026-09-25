@@ -13,8 +13,9 @@ export default defineConfig({
   },
   plugins: [
     VitePWA({
-      // 新しい版は、開いているタブがすべて閉じられてから有効になる（プレイ中に勝手に再読み込みしない）
-      registerType: 'prompt',
+      // 開発中は新しい版をすぐ有効にする（古い版が残ってページが差し替わる問題を避ける）。
+      // 第3段階で、プレイ中に勝手に切り替えない「更新のお知らせ」方式（prompt）へ戻す
+      registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: ['icons/apple-touch-icon.png', 'icons/icon.svg'],
       manifest: {

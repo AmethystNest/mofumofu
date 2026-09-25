@@ -6,7 +6,7 @@ const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceSc
 const p = await ctx.newPage();
 const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', c => c.type() === 'error' && errs.push(c.text()));
 for (const s of ['idle', 'petted', 'eat', 'sleep', 'sad']) {
-  await p.goto(`${url}?m=${m}&s=${s}`);
+  await p.goto(`${url}?s=${s}`);
   await p.waitForFunction(() => window.__labReady, null, { timeout: 90000 });
   await p.waitForTimeout(1200);
   await p.locator('#stage').screenshot({ path: `${out}-${s}.png` });
