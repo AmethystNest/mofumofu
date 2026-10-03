@@ -3,6 +3,7 @@ import * as C from "./core";
 import { stories } from "./content/chapter";
 import { loadSave, persist, type Save } from "./platform/save";
 import { createDogMotion, type DogMotion, type Motion } from "./render/dog-motion";
+import { createDogRig } from "./render/dog-rig";
 import { createEffects, type Effects } from "./render/effects";
 import { isStroking, type TouchPoint } from "./render/gesture";
 const esc = (s: string) =>
@@ -139,7 +140,9 @@ async function render() {
     .querySelectorAll<HTMLButtonElement>("[data-action]")
     .forEach((b) => (b.onclick = () => actions[b.dataset.action!]!()));
   try {
-    const player = await createDogMotion(view.querySelector("img")!);
+    // パーツ式（Phaser）を優先し、使えない端末では従来の一枚絵の描画に切り替える
+    const dogImage = view.querySelector("img")!;
+    const player = await createDogRig(dogImage).catch(() => createDogMotion(dogImage));
     if (id !== renderId) {
       player.destroy();
       return;

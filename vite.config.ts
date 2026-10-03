@@ -9,6 +9,7 @@ export default defineConfig({
   base,
   build: {
     target: ['es2022', 'safari16'],
+    chunkSizeWarningLimit: 1300,   // Phaser（約1.2MB・遅延読み込み）
     rollupOptions: { input: { main: 'index.html', lab: 'lab/dog.html' } },
   },
   plugins: [
