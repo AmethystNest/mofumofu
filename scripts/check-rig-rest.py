@@ -17,7 +17,7 @@ def part(n):
 
 def compose(extra=None):
     out = Image.new('RGBA', (320, 320), (0, 0, 0, 0))
-    order = ['tail', 'base', 'pawL', 'pawR', 'earL', 'earR', 'cheekL', 'cheekR', 'irisL', 'irisR', 'ringL', 'ringR']
+    order = ['tail', 'base', 'earL', 'earR', 'cheekL', 'cheekR', 'eyeOpenL', 'eyeOpenR'] + (extra or [])
     for n in order:
         im, p = part(n)
         out.alpha_composite(im, (p['x'], p['y']))

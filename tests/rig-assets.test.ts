@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest';
 
 const dir = 'public/assets/dog/rig-v1/';
 const atlas = JSON.parse(readFileSync(`${dir}atlas.json`, 'utf8')) as { frames: Record<string, { frame: { x: number; y: number; w: number; h: number } }> };
-const rig = JSON.parse(readFileSync(`${dir}rig.json`, 'utf8')) as { parts: Record<string, { x: number; y: number; w: number; h: number; pivot: number[] | null; z: string }>; eyes: Record<string, { c: number[]; r: number[] }> };
+const rig = JSON.parse(readFileSync(`${dir}rig.json`, 'utf8')) as { parts: Record<string, { x: number; y: number; w: number; h: number; kind: string; axis?: string; root?: string; behind?: boolean }>; eyes: Record<string, { c: number[]; r: number[] }> };
 const png = readFileSync(`${dir}atlas.png`);
 const size = { w: png.readUInt32BE(16), h: png.readUInt32BE(20) };
 
 describe('パーツ素材（rig-v1）', () => {
   it('必要なパーツがそろっている', () => {
-    for (const n of ['base', 'tail', 'earL', 'earR', 'cheekL', 'cheekR', 'pawL', 'pawR', 'irisL', 'irisR', 'ringL', 'ringR', 'lidUpL', 'lidUpR', 'lidLoL', 'lidLoR', 'lashUp', 'lashLo'])
+    for (const n of ['base', 'tail', 'earL', 'earR', 'cheekL', 'cheekR', 'eyeOpenL', 'eyeOpenR', 'eyeHalfL', 'eyeHalfR', 'eyeClosedL', 'eyeClosedR'])
       expect(atlas.frames[n], n).toBeDefined();
   });
   it('アトラスの枠はすべて画像の内側で、重ならない', () => {
@@ -25,17 +25,32 @@ describe('パーツ素材（rig-v1）', () => {
       expect(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y).toBe(true);
     }
   });
-  it('回すパーツには支点があり、元の絵（320×320）の内側にある', () => {
-    for (const n of ['tail', 'earL', 'earR', 'cheekL', 'cheekR', 'pawL', 'pawR']) {
+  it('しなるパーツは向きと付け根が決まっている（付け根は動かさない）', () => {
+    for (const n of ['tail', 'earL', 'earR', 'cheekL', 'cheekR']) {
       const p = rig.parts[n]!;
-      expect(p.pivot, n).not.toBeNull();
-      expect(p.pivot![0]).toBeGreaterThan(0); expect(p.pivot![0]).toBeLessThan(320);
-      expect(p.pivot![1]).toBeGreaterThan(0); expect(p.pivot![1]).toBeLessThan(320);
+      expect(p.kind, n).toBe('rope');
+      expect(['v', 'h']).toContain(p.axis);
+      expect(['top', 'bottom', 'left']).toContain(p.root);
+    }
+    expect(rig.parts.tail!.behind).toBe(true);
+    expect(rig.parts.earL!.behind).toBe(false);
+  });
+  it('パーツの位置は元の絵（320×320）の内側', () => {
+    for (const [n, p] of Object.entries(rig.parts)) {
+      expect(p.x, n).toBeGreaterThanOrEqual(0);
+      expect(p.y, n).toBeGreaterThanOrEqual(0);
+      expect(p.x + p.w, n).toBeLessThanOrEqual(320);
+      expect(p.y + p.h, n).toBeLessThanOrEqual(320);
     }
   });
-  it('尾はベースの奥、そのほかは手前', () => {
-    expect(rig.parts.tail!.z).toBe('behind');
-    expect(rig.parts.earL!.z).toBe('front');
+  it('目のシール（開き・半目・閉じ）は同じ大きさ・同じ位置', () => {
+    for (const side of ['L', 'R']) {
+      const o = rig.parts[`eyeOpen${side}`]!;
+      for (const st of ['Half', 'Closed']) {
+        const q = rig.parts[`eye${st}${side}`]!;
+        expect([q.x, q.y, q.w, q.h]).toEqual([o.x, o.y, o.w, o.h]);
+      }
+    }
   });
   it('目の位置は顔の中（左右の目が同じ高さ・間隔が妥当）', () => {
     const L = rig.eyes.L!, R = rig.eyes.R!;

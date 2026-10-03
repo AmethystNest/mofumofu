@@ -16,33 +16,36 @@ import type { DogMotion, Motion } from './dog-motion';
 import { Spring, clamp, gazeFromDir, gazeTarget, randBetween, squashX, velocity } from './rig-math';
 
 type Frame = { src: string; ms: number };
-type Part = { x: number; y: number; w: number; h: number; pivot: [number, number] | null };
+type Part = { x: number; y: number; w: number; h: number; kind: string; axis?: 'v' | 'h'; root?: string; behind?: boolean; pivot?: [number, number] };
 type Meta = { parts: Record<string, Part>; eyes: { L: { c: [number, number]; r: [number, number] }; R: { c: [number, number]; r: [number, number] } } };
 
 const FLOOR: [number, number] = [160, 287];      // 床に着く点（伸び縮みの支点）
 const HEAD_H = 240;                              // 床から頭のてっぺんまで（px）
 const RIG_MOTIONS: Motion[] = ['idle', 'pet', 'play'];
 const FADE = 110;
+const GAZE_PX = 0.55;                            // 視線（rig-math の値）→ 目のシールのずれ px
+const EYE_HOME: [number, number] = [-FLOOR[0], -FLOOR[1]];
 
 /** Tween が動かす値（主な動き） */
 interface State {
   sy: number; bodyY: number; bodyX: number; lean: number; strokeLean: number;   // 体
   breath: number;                                                                // 呼吸（伸び縮みに足す）
-  squint: number; squintTop: number; blink: number;                              // 目
+  squint: number; blink: number;                              // 目
   gx: number; gy: number;                                                        // 視線
   tail: number; tailAmb: number; earBase: number; earFlickL: number; earFlickR: number;
-  pawL: number; pawR: number;
 }
 
 interface Inner { api: DogMotion; attach(image: HTMLImageElement): void; detach(image: HTMLImageElement): void }
 let shared: Promise<Inner> | undefined;
+let failed = false;     // 一度失敗した端末では作り直しを繰り返さない
 
 /**
  * 画面の描き直し（お世話のたびに起こる）で Phaser を作り直さないよう、ゲームは1つだけ作って使い回す。
  * 描き直しでは canvas を新しい場所へ付け替えるだけ。外している間は更新を止める。
  */
 export async function createDogRig(image: HTMLImageElement): Promise<DogMotion> {
-  shared ??= init().catch((e) => { shared = undefined; throw e; });
+  if (failed) throw new Error('rig unavailable');
+  shared ??= init().catch((e) => { failed = true; shared = undefined; throw e; });
   const inner = await shared;
   inner.attach(image);
   return { ...inner.api, get motion() { return inner.api.motion; }, get drawMs() { return inner.api.drawMs; }, destroy: () => inner.detach(image) };
@@ -64,10 +67,10 @@ async function init(): Promise<Inner> {
   const px = Math.round(320 * dpr);
 
   const S: State = {
-    sy: 1, bodyY: 0, bodyX: 0, lean: 0, strokeLean: 0, breath: 0, squint: 0, squintTop: 0, blink: 0,
-    gx: 0, gy: 0, tail: 0, tailAmb: 0, earBase: 0, earFlickL: 0, earFlickR: 0, pawL: 0, pawR: 0,
+    sy: 1, bodyY: 0, bodyX: 0, lean: 0, strokeLean: 0, breath: 0, squint: 0, blink: 0,
+    gx: 0, gy: 0, tail: 0, tailAmb: 0, earBase: 0, earFlickL: 0, earFlickR: 0,
   };
-  const STATE_REST = { sy: 1, bodyY: 0, bodyX: 0, lean: 0, strokeLean: 0, squint: 0, squintTop: 0, tail: 0, earBase: 0, pawL: 0, pawR: 0 };
+  const STATE_REST = { sy: 1, bodyY: 0, bodyX: 0, lean: 0, strokeLean: 0, squint: 0, tail: 0, earBase: 0 };
 
   let sc!: PhaserNS.Scene;
   let game!: PhaserNS.Game;
@@ -118,17 +121,19 @@ async function init(): Promise<Inner> {
       },
     };
     try { game = new Phaser.Game(cfg); } catch (e) { reject(e as Error); }
+    // Rope は WebGL 専用。使えないときは従来の描画へ切り替える（呼び出し側で捕まえる）
+    if (game && game.renderer.type !== Phaser.WEBGL) { game.destroy(true); reject(new Error('WebGL unavailable')); }
   });
 
   let rootC!: PhaserNS.GameObjects.Container;
   let rigC!: PhaserNS.GameObjects.Container;
   let poseA!: PhaserNS.GameObjects.Image, poseB!: PhaserNS.GameObjects.Image;
-  const parts: Record<string, PhaserNS.GameObjects.Container> = {};
-  const eye = {} as Record<'L' | 'R', { iris: PhaserNS.GameObjects.Container; lidUp: PhaserNS.GameObjects.Image; lashUp: PhaserNS.GameObjects.Image; lidLo: PhaserNS.GameObjects.Image; lashLo: PhaserNS.GameObjects.Image; lidH: number }>;
+  type Rope = { obj: PhaserNS.GameObjects.Rope; base: { x: number; y: number }[]; axis: 'v' | 'h'; t: number[] };
+  const ropes: Record<string, Rope> = {};                                       // 耳・ほほ毛・しっぽ（付け根を固定してしなる）
+  const eye = {} as Record<'L' | 'R', { box: PhaserNS.GameObjects.Container; half: PhaserNS.GameObjects.Image; closed: PhaserNS.GameObjects.Image }>;
   const spring = {
-    earL: new Spring(0, 22, 0.32), earR: new Spring(0, 22, 0.32), tail: new Spring(0, 13, 0.36),
-    cheekLY: new Spring(0, 20, 0.4), cheekRY: new Spring(0, 20, 0.4), cheekLA: new Spring(0, 18, 0.4), cheekRA: new Spring(0, 18, 0.4),
-    pawLY: new Spring(0, 26, 0.5), pawRY: new Spring(0, 26, 0.5),
+    earL: new Spring(0, 22, 0.34), earR: new Spring(0, 22, 0.34), tail: new Spring(0, 13, 0.4),
+    cheekL: new Spring(0, 18, 0.4), cheekR: new Spring(0, 18, 0.4),
     gx: new Spring(0, 34, 0.6), gy: new Spring(0, 34, 0.6),
   };
 
@@ -141,39 +146,41 @@ async function init(): Promise<Inner> {
     const P = meta.parts;
     const place = (c: PhaserNS.GameObjects.GameObject) => { rigC.add(c); return c; };
 
-    // 奥：しっぽ（付け根を軸に回す）
-    const tailP = P.tail!;
-    const [tx, ty] = at(...tailP.pivot!);
-    parts.tail = sc.add.container(tx, ty, [img('tail', tailP, tailP.pivot![0], tailP.pivot![1]).setPosition(tailP.x - tailP.pivot![0], tailP.y - tailP.pivot![1])]);
-    place(parts.tail);
-    // 体（頭・胴）
-    place(sc.add.image(...at(0, 0), 'rig', 'base').setOrigin(0, 0));
-    const pivoted = (name: string) => {
+    // 付け根を固定してしなるパーツ（Rope）。t は付け根からの距離の割合（0=付け根）
+    const makeRope = (name: string) => {
       const p = P[name]!;
-      const [x, y] = at(...p.pivot!);
-      const c = sc.add.container(x, y, [sc.add.image(p.x - p.pivot![0], p.y - p.pivot![1], 'rig', name).setOrigin(0, 0)]);
-      parts[name] = c;
-      place(c);
+      const vertical = p.axis === 'v';
+      const segs = 12;
+      const len = vertical ? p.h : p.w;
+      const pts = Array.from({ length: segs }, (_, i) => {
+        const d = -len / 2 + (len * i) / (segs - 1);
+        return vertical ? { x: 0, y: d } : { x: d, y: 0 };
+      });
+      const obj = sc.add.rope(...at(p.x + p.w / 2, p.y + p.h / 2), 'rig', name, pts, !vertical);
+      const base = pts.map((q) => ({ x: q.x, y: q.y }));
+      const t = base.map((q) => {
+        const d = vertical ? q.y + len / 2 : q.x + len / 2;            // 先頭から
+        return clamp(p.root === 'bottom' ? 1 - d / len : p.root === 'top' || p.root === 'left' ? d / len : 0, 0, 1);
+      });
+      ropes[name] = { obj, base, axis: p.axis!, t };
+      return obj;
     };
-    pivoted('pawL'); pivoted('pawR');
-    // 目：黒目 → まぶた → 縁（縁が黒目・まぶたのはみ出しを隠す）
+    // 奥：しっぽ
+    rigC.add(makeRope('tail'));
+    // 体（頭・胴）
+    rigC.add(sc.add.image(...at(0, 0), 'rig', 'base').setOrigin(0, 0));
+    // 目：目のまわりをひとまとめにした「シール」。開き目の上に、半目・閉じ目を重ねて切り替える
     for (const side of ['L', 'R'] as const) {
-      const e = meta.eyes[side], ip = P[`iris${side}`]!, rp = P[`ring${side}`]!;
-      const [cx, cy] = e.c;
-      const iris = sc.add.container(...at(cx, cy), [sc.add.image(ip.x - cx, ip.y - cy, 'rig', `iris${side}`).setOrigin(0, 0)]);
-      place(iris);
-      const lw = P[`lidUp${side}`]!.w, lh = P[`lidUp${side}`]!.h;
-      const top = cy - e.r[1] - 4, bottom = cy + e.r[1] + 4, x0 = cx - lw / 2;
-      const lidUp = sc.add.image(...at(x0, top), 'rig', `lidUp${side}`).setOrigin(0, 0).setScale(1, 0).setVisible(false);
-      const lashUp = sc.add.image(...at(x0, top), 'rig', 'lashUp').setOrigin(0, 0).setVisible(false);
-      const lidLo = sc.add.image(...at(x0, bottom), 'rig', `lidLo${side}`).setOrigin(0, 1).setScale(1, 0).setVisible(false);
-      const lashLo = sc.add.image(...at(x0, bottom), 'rig', 'lashLo').setOrigin(0, 0).setVisible(false);
-      place(lidUp); place(lashUp); place(lidLo); place(lashLo);
-      place(sc.add.image(...at(rp.x, rp.y), 'rig', `ring${side}`).setOrigin(0, 0));
-      eye[side] = { iris, lidUp, lashUp, lidLo, lashLo, lidH: lh };
+      const o = P[`eyeOpen${side}`]!, h = P[`eyeHalf${side}`]!, c = P[`eyeClosed${side}`]!;
+      const open = sc.add.image(o.x, o.y, 'rig', `eyeOpen${side}`).setOrigin(0, 0);
+      const half = sc.add.image(h.x, h.y, 'rig', `eyeHalf${side}`).setOrigin(0, 0).setAlpha(0);
+      const closed = sc.add.image(c.x, c.y, 'rig', `eyeClosed${side}`).setOrigin(0, 0).setAlpha(0);
+      const box = sc.add.container(...at(0, 0), [open, half, closed]);
+      eye[side] = { box, half, closed };
+      rigC.add(box);
     }
     // 手前：耳・ほほ毛
-    for (const n of ['earL', 'earR', 'cheekL', 'cheekR']) pivoted(n);
+    for (const n of ['earL', 'earR', 'cheekL', 'cheekR']) rigC.add(makeRope(n));
 
     // 専用コマ（食事・眠り・しょんぼり）
     const first = `pose:${clips.sleep[0]!.src}`;
@@ -187,7 +194,7 @@ async function init(): Promise<Inner> {
     canvas.style.setProperty('width', '100%', 'important');
     canvas.style.setProperty('height', 'auto', 'important');
     canvas.dataset.renderer = game.renderer.type === Phaser.WEBGL ? 'phaser-webgl' : 'phaser-canvas';
-    if (import.meta.env.DEV) (window as unknown as { __rig?: unknown }).__rig = { S, spring, parts, eye, root: rootC };
+    if (import.meta.env.DEV) (window as unknown as { __rig?: unknown }).__rig = { S, spring, ropes, eye, root: rootC };
   }
 
   // ---- 状態の切り替え -------------------------------------------------------
@@ -272,7 +279,7 @@ async function init(): Promise<Inner> {
       if (!wasRig) settle(160);
     } else {
       // 専用コマ：体の伸び縮みと呼吸だけを重ねる
-      Object.assign(S, { blink: 0, squint: 0, squintTop: 0 });
+      Object.assign(S, { blink: 0, squint: 0 });
       if (m === 'sleep') { setBreath(0.026, 2600); settle(); }
       else if (m === 'sad') { setBreath(0.012, 3200); settle(); }
       else if (m === 'eat') {
@@ -285,8 +292,8 @@ async function init(): Promise<Inner> {
   const canvas = () => game.canvas;
 
   function enterPet() {
-    tw({ targets: S, squint: 0.62, squintTop: 0, earBase: 5, duration: 160, ease: 'Sine.Out' });
-    tw({ targets: S, tail: { from: -7, to: 7 }, duration: 150, ease: 'Sine.InOut', yoyo: true, repeat: -1 });
+    tw({ targets: S, squint: 1, earBase: 3, duration: 160, ease: 'Sine.Out' });
+    tw({ targets: S, tail: { from: -6, to: 6 }, duration: 150, ease: 'Sine.InOut', yoyo: true, repeat: -1 });
     tw({ targets: S, lean: { from: -1.4, to: 1.4 }, duration: 330, ease: 'Sine.InOut', yoyo: true, repeat: -1 });
     chain({ targets: S, loop: -1, tweens: [
       { sy: 0.95, bodyY: 0.5, duration: 90, ease: 'Quad.Out' },
@@ -294,14 +301,11 @@ async function init(): Promise<Inner> {
       { sy: 0.97, bodyY: 0, duration: 110, ease: 'Quad.In' },
       { sy: 1, bodyY: 0, duration: 260, ease: 'Elastic.Out' },
     ] });
-    // 前足のふみふみ（片方ずつ、時間差）
-    tw({ targets: S, pawL: -2.2, duration: 170, ease: 'Sine.InOut', yoyo: true, repeat: -1 });
-    tw({ targets: S, pawR: -2.2, duration: 170, ease: 'Sine.InOut', yoyo: true, repeat: -1, delay: 170 });
   }
 
   function enterPlay() {
-    tw({ targets: S, squint: 0.3, squintTop: 0.04, earBase: 2, duration: 140, ease: 'Sine.Out' });
-    tw({ targets: S, tail: { from: -9, to: 9 }, duration: 120, ease: 'Sine.InOut', yoyo: true, repeat: -1 });
+    tw({ targets: S, earBase: 1.5, duration: 140, ease: 'Sine.Out' });
+    tw({ targets: S, tail: { from: -7, to: 7 }, duration: 120, ease: 'Sine.InOut', yoyo: true, repeat: -1 });
     // ぴょんぴょん：ため（つぶれ）→ 跳ぶ（縦に伸びる）→ 落ちる → 着地（つぶれ）→ 戻る
     chain({ targets: S, loop: -1, tweens: [
       { sy: 0.88, bodyY: 1, duration: 120, ease: 'Quad.Out' },
@@ -345,7 +349,7 @@ async function init(): Promise<Inner> {
       const left = Math.random() < 0.5;
       const key = left ? 'earFlickL' : 'earFlickR';
       sc.tweens.chain({ targets: S, tweens: [
-        { [key]: -11, duration: 70, ease: 'Quad.Out' }, { [key]: 4, duration: 90, ease: 'Quad.InOut' }, { [key]: 0, duration: 220, ease: 'Elastic.Out' },
+        { [key]: -6, duration: 70, ease: 'Quad.Out' }, { [key]: 2, duration: 90, ease: 'Quad.InOut' }, { [key]: 0, duration: 220, ease: 'Elastic.Out' },
       ] });
       if (Math.random() < 0.4) { // 音のしたほうへ視線を向ける
         const g = gazeFromDir(left ? -1 : 1);
@@ -354,11 +358,11 @@ async function init(): Promise<Inner> {
     }
     if (calm) {
       // ゆっくり揺れるしっぽ。ときどき短く速く振る
-      if (!ambientTail) ambientTail = sc.tweens.add({ targets: S, tailAmb: { from: -3.5, to: 3.5 }, duration: 1350, ease: 'Sine.InOut', yoyo: true, repeat: -1 });
+      if (!ambientTail) ambientTail = sc.tweens.add({ targets: S, tailAmb: { from: -3, to: 3 }, duration: 1350, ease: 'Sine.InOut', yoyo: true, repeat: -1 });
       if (clock.wag <= 0) {
         clock.wag = randBetween(Math.random, 6000, 12000);
         ambientTail.stop();
-        sc.tweens.add({ targets: S, tailAmb: { from: -7, to: 7 }, duration: 130, ease: 'Sine.InOut', yoyo: true, repeat: 7, onComplete: () => { ambientTail = undefined; } });
+        sc.tweens.add({ targets: S, tailAmb: { from: -6, to: 6 }, duration: 130, ease: 'Sine.InOut', yoyo: true, repeat: 7, onComplete: () => { ambientTail = undefined; } });
       }
       // ふとした首かしげ（体をわずかに傾ける。耳が遅れて追う）
       if (clock.curious <= 0) {
@@ -398,46 +402,39 @@ async function init(): Promise<Inner> {
     prevHeadY = headY; prevHeadX = headX; first = false;
 
     if (showing === 'rig' || poseB.visible) {
+      // 耳：付け根は動かさず、先ほど大きくしなる（px は先端のずれ）。上へ動くと遅れて外へ垂れ、着地ではね返る
       const earL = -S.earBase + S.earFlickL, earR = S.earBase - S.earFlickR;
-      const drag = clamp(up * 0.03, -9, 9), side = clamp(vx * 0.04, -8, 8);
-      parts.earL!.setAngle(spring.earL.step(earL - drag - side, dt));
-      parts.earR!.setAngle(spring.earR.step(earR + drag - side, dt));
-      parts.tail!.setAngle(spring.tail.step(S.tail + S.tailAmb + clamp(up * 0.02, -6, 6) - clamp(vx * 0.05, -7, 7), dt));
-      // ほほ毛：体が上がると遅れて下へ、横に動くと逆へなびく
-      const cy = clamp(up * 0.008, -2.4, 2.4), ca = clamp(vx * 0.02, -3.5, 3.5);
-      setOffsetY('cheekL', spring.cheekLY.step(cy, dt)); setOffsetY('cheekR', spring.cheekRY.step(cy, dt));
-      parts.cheekL!.setAngle(spring.cheekLA.step(-ca, dt)); parts.cheekR!.setAngle(spring.cheekRA.step(-ca, dt));
-      // 前足：跳ぶと足が遅れてぶら下がり、着地でつぶれる
-      const dangle = clamp(up * 0.012, -2, 3);
-      setOffsetY('pawL', spring.pawLY.step(clamp(S.pawL + dangle, -4, 3), dt));
-      setOffsetY('pawR', spring.pawRY.step(clamp(S.pawR + dangle, -4, 3), dt));
-      // 目：視線＋体の動きに少し遅れる。まぶたは上下から
-      const gx = spring.gx.step(clamp(S.gx - clamp(vx * 0.004, -1, 1), -5, 3.5), dt);
-      const gy = spring.gy.step(clamp(S.gy + clamp(up * 0.006, -1.2, 1.5), -3, 2.6), dt);
-      const upper = Math.max(S.blink, S.squintTop), lower = S.squint;
+      const drag = clamp(up * 0.006, -6, 6), side = clamp(vx * 0.01, -5, 5);
+      bend('earL', spring.earL.step(earL - drag - side, dt));
+      bend('earR', spring.earR.step(earR + drag - side, dt));
+      // しっぽ（先端の上下のずれ）。体が上がると遅れて下へ
+      bend('tail', spring.tail.step(S.tail + S.tailAmb + clamp(up * 0.006, -5, 5) - clamp(vx * 0.008, -5, 5), dt));
+      // ほほ毛：体が横に動くと逆へなびく
+      const ca = clamp(vx * 0.006, -2.6, 2.6);
+      bend('cheekL', spring.cheekL.step(-ca, dt)); bend('cheekR', spring.cheekR.step(-ca, dt));
+      // 目：シールごと小さくずらす（視線）。体の動きに少し遅れる
+      const gx = spring.gx.step(clamp((S.gx - clamp(vx * 0.002, -0.5, 0.5)) * GAZE_PX, -2.2, 1.8), dt);
+      const gy = spring.gy.step(clamp((S.gy + clamp(up * 0.003, -0.6, 0.8)) * GAZE_PX, -1.6, 1.4), dt);
+      // まばたき・目を細める：開き目 → 半目 → 閉じ目 の順に重ねる
+      const lid = Math.max(S.blink, S.squint);
       for (const k of ['L', 'R'] as const) {
         const e = eye[k];
-        e.iris.setPosition(baseX(k) + gx, baseY(k) + gy);
-        e.lidUp.setVisible(upper > 0.02).setScale(1, upper);
-        e.lashUp.setVisible(upper > 0.04).setY(e.lidUp.y + e.lidH * upper - 5.5);
-        e.lidLo.setVisible(lower > 0.02).setScale(1, lower);
-        e.lashLo.setVisible(lower > 0.04).setY(e.lidLo.y - e.lidH * lower - 2.5);
+        e.box.setPosition(EYE_HOME[0] + gx, EYE_HOME[1] + gy);
+        e.half.setAlpha(clamp(lid * 2, 0, 1));
+        e.closed.setAlpha(clamp(lid * 2 - 1, 0, 1));
       }
     }
     drawMs = drawMs * 0.9 + (performance.now() - t0) * 0.1;
     if (reduced && !sleeping && game.loop.frame >= sleepAfter) { game.loop.sleep(); sleeping = true; }
   }
 
-  // 部品の基準位置（組み立て時の位置）を覚えておき、そこからのずれで動かす
-  const home = new Map<string, number>();
-  function setOffsetY(name: string, dy: number) {
-    const c = parts[name]!;
-    if (!home.has(name)) home.set(name, c.y);
-    c.setY(home.get(name)! + dy);
+  /** しなる：付け根(t=0)は動かず、先へいくほど大きくずれる。amp は先端のずれ(px)。縦長は横へ、横長は縦へ */
+  function bend(name: string, amp: number) {
+    const r = ropes[name]!;
+    const key = r.axis === 'v' ? 'x' : 'y';
+    for (let i = 0; i < r.base.length; i++) r.obj.points[i]![key] = r.base[i]![key] + amp * Math.pow(r.t[i]!, 1.7);
+    r.obj.setDirty();
   }
-  const eyeHome: Record<string, [number, number]> = {};
-  const baseX = (k: 'L' | 'R') => (eyeHome[k] ??= [eye[k].iris.x, eye[k].iris.y])[0];
-  const baseY = (k: 'L' | 'R') => (eyeHome[k] ??= [eye[k].iris.x, eye[k].iris.y])[1];
 
   let current: HTMLImageElement | undefined;
   await ready;
