@@ -36,7 +36,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,json,ink,mp3,m4a,ogg}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2,json,ink,mp3,m4a,ogg}'],
         // 比較用の大きなスプライトは事前キャッシュしない
         globIgnores: ['lab/**'],
         navigateFallback: 'index.html',
