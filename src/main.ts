@@ -2,7 +2,9 @@ import "./style.css";
 import * as C from "./core";
 import { stories } from "./content/chapter";
 import { loadSave, persist, type Save } from "./platform/save";
-import { createDogMotion, type Motion } from "./render/dog-motion";
+import { createDogMotion, type DogMotion, type Motion } from "./render/dog-motion";
+import { createEffects, type Effects } from "./render/effects";
+import { isStroking, type TouchPoint } from "./render/gesture";
 const esc = (s: string) =>
   s.replace(
     /[&<>"']/g,
@@ -25,8 +27,16 @@ app.innerHTML = `<main><header><div><p class="eyebrow">MOFUMOFU</p><h1>灯りの
 const view = document.querySelector<HTMLDivElement>("#view")!,
   dialog = document.querySelector<HTMLDialogElement>("#dialog")!,
   content = document.querySelector<HTMLDivElement>("#dialog-content")!;
-let motion: Awaited<ReturnType<typeof createDogMotion>> | undefined,
+let motion: DogMotion | undefined,
+  effects: Effects | undefined,
+  sighTimer = 0,
   renderId = 0;
+/** 犬の準備ができてから実行する演出（描き直し直後の操作でも取りこぼさない） */
+let afterDog: (() => void)[] = [];
+function withDog(fn: () => void) {
+  if (motion && effects) fn();
+  else afterDog.push(fn);
+}
 function store() {
   if (!persist(save))
     document.querySelector("#save-note")!.textContent =
@@ -54,10 +64,8 @@ function show(
   }
   if (!dialog.open) dialog.showModal();
 }
-let queued: { m: Motion; ms?: number } | undefined;
 function react(m: Motion, ms?: number) {
-  if (motion) motion.react(m, ms);
-  else queued = { m, ms };
+  withDog(() => motion!.react(m, ms));
 }
 function update() {
   store();
@@ -79,7 +87,10 @@ function stats() {
 async function render() {
   const id = ++renderId;
   motion?.destroy();
+  effects?.destroy();
+  window.clearInterval(sighTimer);
   motion = undefined;
+  effects = undefined;
   document.querySelectorAll<HTMLButtonElement>("nav button").forEach((b) => {
     b.classList.toggle("selected", b.dataset.tab === tab);
     b.setAttribute("aria-current", b.dataset.tab === tab ? "page" : "false");
@@ -123,7 +134,7 @@ async function render() {
   };
   const time = C.timeOfDay(st);
   view.innerHTML = `<section class="room-card ${time}" aria-label="${times[time]}の部屋"><div class="room-top"><span>DAY ${String(st.day).padStart(2, "0")} <i>／</i> ${times[time]}</span><span class="terminal">● MINATO</span></div><button class="dog-button" id="dog" aria-label="${esc(st.name)}をなでる"><img class="dog-idle" src="${import.meta.env.BASE_URL}assets/dog/idle-v12/frame_00.png" width="320" height="320" alt="星の額模様を持つ、丸い犬の${esc(st.name)}"></button><span class="room-caption">ここが、ふたりの帰る場所。</span></section><section class="care"><div class="pet-heading"><div><p class="eyebrow">YOUR LITTLE COMPANION</p><h2>${esc(st.name)} <span>${st.dog.trust >= 35 ? "そばが、いちばん安心。" : "少しずつ、なかよしに。"}</span></h2></div><span class="ap" aria-label="行動力 ${st.ap}回">${[0, 1, 2].map((i) => `<i class="${i < st.ap ? "filled" : ""}"></i>`).join("")}</span></div><div class="stats">${stats()}</div><p id="feedback" role="status">${esc(feedback)}</p><div class="actions"><button data-action="feed"><b>◒</b>ごはん<small>分けあう時間</small></button><button data-action="pet"><b>♡</b>なでる<small>そっと、ふれる</small></button><button data-action="play" ${st.ap < 1 || !!st.pendingNight ? "disabled" : ""}><b>✧</b>あそぶ<small>行動力 1</small></button><button data-action="explore" ${st.ap < 2 || !!st.pendingNight ? "disabled" : ""}><b>↗</b>さんぽ<small>探索 · 行動力 2</small></button></div><button class="bed" data-action="rest">☾ ${st.pendingNight ? "今夜の物語を読む" : "今日を終える"} <span>夜のひととき →</span></button></section>`;
-  document.querySelector("#dog")!.addEventListener("click", pet);
+  bindDogTouch(view.querySelector<HTMLButtonElement>("#dog")!);
   view
     .querySelectorAll<HTMLButtonElement>("[data-action]")
     .forEach((b) => (b.onclick = () => actions[b.dataset.action!]!()));
@@ -134,22 +145,91 @@ async function render() {
       return;
     }
     motion = player;
-    motion.set(st.pendingNight ? "sleep" : st.dog.energy < 20 ? "sad" : "idle");
-    if (queued) {
-      motion.react(queued.m, queued.ms);
-      queued = undefined;
+    effects = createEffects(view.querySelector<HTMLElement>(".room-card")!, view.querySelector<HTMLElement>("#dog")!);
+    const passive: Motion = st.pendingNight ? "sleep" : st.dog.energy < 20 ? "sad" : "idle";
+    motion.set(passive);
+    effects.sleepy(passive === "sleep");
+    if (passive === "sad") {
+      effects.sigh();
+      sighTimer = window.setInterval(() => effects?.sigh(), 7000);
     }
+    if (import.meta.env.DEV) (window as unknown as { __dog?: DogMotion }).__dog = motion;
+    const queued = afterDog;
+    afterDog = [];
+    for (const fn of queued) fn();
   } catch {
     message("犬の動きを読み込めませんでした。再読み込みすると再試行します。");
   }
 }
 function pet() {
-  C.pet(st);
+  const r = C.pet(st);
   store();
-  message(`${st.name}が目を細めた。手の温もりを、覚えている。`);
+  message(
+    r.fx.length
+      ? `${st.name}が目を細めた。手の温もりを、覚えている。`
+      : `${st.name}は満ち足りた顔で、あなたの手に頭をあずけた。`,
+  );
   react("pet");
+  withDog(() => effects!.hearts(r.fx.length ? 3 : 2));
   const el = view.querySelector(".stats");
   if (el) el.innerHTML = stats();
+}
+/** 犬へのタッチ：触れた方へ首を寄せ、タップ・なでる・長押しで「なでる」。なでている間は手を追う。キーボードの決定でもなでる */
+function bindDogTouch(dog: HTMLButtonElement) {
+  let track: TouchPoint[] = [];
+  let stroking = false,
+    lastHeart = 0;
+  const point = (e: PointerEvent): TouchPoint => ({ t: e.timeStamp, x: e.clientX, y: e.clientY });
+  const dir = (e: PointerEvent) => {
+    const r = dog.getBoundingClientRect();
+    return (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+  };
+  /** 指の位置（犬の絵の座標 0..320）。ハートは手のすぐ上に出す */
+  const at = (e: PointerEvent): [number, number] => {
+    const r = dog.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 320, y = ((e.clientY - r.top) / r.height) * 320;
+    return [Math.max(70, Math.min(250, x)), Math.max(40, Math.min(200, y - 28))];
+  };
+  const end = (e: PointerEvent, cancelled: boolean) => {
+    if (!track.length) return;
+    track.push(point(e));
+    const wasStroking = stroking;
+    if (stroking) motion?.stroke(false);
+    stroking = false;
+    track = [];
+    // タップ・なでる・長押しはどれも「なでる」（従来どおり）。
+    // 縦スクロールに切り替わって取り消されたときは、なで始めていた場合だけ数える
+    if (!cancelled || wasStroking) pet();
+  };
+  dog.addEventListener("pointerdown", (e) => {
+    track = [point(e)];
+    stroking = false;
+    // 触れた瞬間に、指の方へ首を少し寄せる
+    motion?.look(dir(e));
+    dog.setPointerCapture?.(e.pointerId);
+  });
+  dog.addEventListener("pointermove", (e) => {
+    if (!track.length) return;
+    track.push(point(e));
+    if (!stroking && isStroking(track)) {
+      stroking = true;
+      lastHeart = e.timeStamp;
+      withDog(() => effects!.hearts(1, at(e)));
+    }
+    if (stroking) {
+      motion?.stroke(true, dir(e));
+      if (e.timeStamp - lastHeart > 650) {
+        lastHeart = e.timeStamp;
+        withDog(() => effects!.hearts(1, at(e)));
+      }
+    }
+  });
+  dog.addEventListener("pointerup", (e) => end(e, false));
+  dog.addEventListener("pointercancel", (e) => end(e, true));
+  dog.addEventListener("click", (e) => {
+    // 指やマウスの操作は上で処理済み。キーボードの決定（detail が 0）だけここでなでる
+    if (e.detail === 0) pet();
+  });
 }
 function feed() {
   show(
@@ -190,7 +270,10 @@ function feed() {
               ? `${st.name}がゆっくり、ごはんを味わった。`
               : "あなたも、ひと息。明日のために。";
         update();
-        setTimeout(() => react(r.toDog ? "eat" : "idle", 2600), 200);
+        setTimeout(() => {
+          react(r.toDog ? "eat" : "idle", 2600);
+          if (r.toDog) withDog(() => effects!.bowl(2600));
+        }, 200);
       };
       row.append(b);
     }
@@ -314,7 +397,10 @@ const actions: Record<string, () => void> = {
     }
     feedback = `${st.name}のしっぽが、楽しそうに揺れた。`;
     update();
-    setTimeout(() => react("play", 3000), 200);
+    setTimeout(() => {
+      react("play", 3000);
+      withDog(() => effects!.sparkles(5));
+    }, 200);
   },
 };
 app.querySelectorAll<HTMLButtonElement>("nav button").forEach(
