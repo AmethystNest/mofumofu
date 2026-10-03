@@ -1,0 +1,21 @@
+{
+  "browser": "Chromium",
+  "widths": [
+    {
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "overflow": false
+    }
+  ],
+  "chapterComplete": true,
+  "reloadSave": true,
+  "offlineReloadAndPet": true,
+  "errors": []
+}

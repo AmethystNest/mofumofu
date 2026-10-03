@@ -1,0 +1,144 @@
+{
+  "eyeCentersApprox": {
+    "0": [
+      [
+        122,
+        151
+      ],
+      [
+        194,
+        151
+      ]
+    ],
+    "4": [
+      [
+        126,
+        149
+      ],
+      [
+        189,
+        165
+      ]
+    ],
+    "5": [
+      [
+        132,
+        150
+      ],
+      [
+        194,
+        169
+      ]
+    ],
+    "7": [
+      [
+        120,
+        168
+      ],
+      [
+        180,
+        149
+      ]
+    ],
+    "8": [
+      [
+        116,
+        171
+      ],
+      [
+        175,
+        150
+      ]
+    ]
+  },
+  "headScaleFactors": {
+    "0": 1.0,
+    "4": 1.1076923076923078,
+    "5": 1.110323409517137,
+    "7": 1.1440106704208923,
+    "8": 1.149684567519923
+  },
+  "sequence": [
+    0,
+    1,
+    2,
+    1,
+    0,
+    4,
+    5,
+    4,
+    0,
+    7,
+    8,
+    7,
+    0
+  ],
+  "durationsMs": [
+    1300,
+    90,
+    140,
+    90,
+    750,
+    200,
+    650,
+    200,
+    800,
+    200,
+    650,
+    200,
+    1100
+  ],
+  "fixedRegion": [
+    0,
+    245,
+    320,
+    320
+  ],
+  "status": "local neck-animation revision complete; user visual approval and game/device checks pending",
+  "neckRepair": {
+    "source": "frame_00.png",
+    "blendRows": [
+      219,
+      227
+    ],
+    "fixedBelowY": 245,
+    "editedFrames": [
+      4,
+      5,
+      7,
+      8
+    ]
+  },
+  "refinement": {
+    "source": "v11",
+    "editedFrames": [
+      7,
+      8
+    ],
+    "bounds": [
+      113,
+      221,
+      130,
+      231
+    ],
+    "method": "smooth spatial mask with existing frame_00 chest; no head transformation"
+  },
+  "width": 320,
+  "height": 320,
+  "loop": 0,
+  "loopDurationMs": 6370,
+  "frames": [
+    "frame_00.png",
+    "frame_01.png",
+    "frame_02.png",
+    "frame_03.png",
+    "frame_04.png",
+    "frame_05.png",
+    "frame_06.png",
+    "frame_07.png",
+    "frame_08.png",
+    "frame_09.png",
+    "frame_10.png",
+    "frame_11.png"
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "browser": "Chromium",
+  "viewport": [
+    390,
+    844
+  ],
+  "deviceScaleFactor": 3,
+  "touchEmulated": true,
+  "frames": [
+    0,
+    1,
+    2,
+    1,
+    0,
+    4,
+    5,
+    4,
+    0,
+    7,
+    8,
+    7,
+    0,
+    1,
+    2,
+    1,
+    0,
+    4,
+    5,
+    4,
+    0,
+    7,
+    8,
+    7,
+    0
+  ],
+  "viewports": [
+    {
+      "width": 320,
+      "imageWidth": 272,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "imageWidth": 320,
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "imageWidth": 320,
+      "overflow": false
+    }
+  ],
+  "offlineReload": true,
+  "offlineHeadTilt": true,
+  "oldLabRetained": true,
+  "errors": [],
+  "physicalDeviceTested": false,
+  "vitest": {
+    "filesPassed": 4,
+    "testsPassed": 14
+  },
+  "pagesBuildBase": "/mofumofu/",
+  "typecheckAndProductionBuild": "passed",
+  "sourceAssetsUnchanged": true,
+  "assetSha256": {
+    "frame_01.png": "bbac4e9c31aec73d7be73e414e945813bcf92efebfc6ca3ab9bc27311c2de0ee",
+    "frame_09.png": "bde4d1ca80d76304c85c90aed50827ae263d652fa37275ae16698b0a776489bb",
+    "frame_04.png": "698eac535425d4fbb6a6b5e89473ca453189fe6ab37f66913fdc85d4d878f934",
+    "frame_07.png": "f87f73d3083659a15cde29bdde282094701c0ee68422fac49bfe6146eaa12c6f",
+    "frame_02.png": "bc0cd4ce524614aac3105fcf876b012349a996c2fd382cdc90a6aab6c58c4987",
+    "frame_05.png": "fdf2b61af15f8bb9494b58dca0da6f46b30102707d217dbb0f33b1528463110e",
+    "animation.json": "1ff98ed95925537c28840d56b9ffbaed332fdc9a7d93789c8f3f81e7f8d183e9",
+    "dog_idle.webp": "1f50961d790408e14b43047148a978abe29b2a923ad73525eac6131bc5ce26b1",
+    "frame_00.png": "33fc101d961058aad3dd792ca9d9d21a021df962296b9d61b22f68145fd54f24",
+    "frame_03.png": "a3758cc60e5bd2982b8fdc53332656fae0e6d7448e6d2d76d636a492cd4278ce",
+    "frame_08.png": "11e501bba878fa26d601840032da679656e0680ec81b55eab1cd8f6dba2b1edb",
+    "frame_06.png": "d67412af2fb205d9699582d0cee8748df7ff4c3bc8c8004422cd34d708410b61",
+    "frame_11.png": "d5716de759866e525157daff6f6d6aa5fd50d4fbced247c8ec0ba0a6debc25ab",
+    "frame_10.png": "1682c79d02a23df60fe3284e2d2d022d9150880b6cc27edafe5dbd5c7ec0fc12"
+  }
+}
