@@ -83,6 +83,7 @@ src/platform/  保存・音・入力・PWA・触覚
 - エラーなく動いただけで完成にしない。見た目はスクリーンショットで自己レビューする。
 - 確定仕様・承認済みの素材は、必要がなければ触らない。
 - 成果物はZIPにせず、ファイルのまま渡す。
+- **変更のたびにスマホ確認用リンクを渡す**（2026-10-03 ユーザー指示）。`node scripts/build-preview.mjs <出力先>` で相対パス・Service Worker なしの版を作り、claude.ai の Artifact（https://claude.ai/artifact/L3HrNy8q6E1KBwD9Hnk2re 、非公開・本人のみ）へ同じURLで再公開する。別の会話からは `url` を指定して更新する。PWA・オフラインの確認は GitHub Pages 側で行う（Artifact では Service Worker が動かない）。
 
 ## 6. 進捗記録
 
