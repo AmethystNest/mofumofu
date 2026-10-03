@@ -1,0 +1,106 @@
+{
+  "sourceUnchanged": true,
+  "idleDurationMs": 6370,
+  "frames": [
+    {
+      "file": "ear-left-1.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "ear-left-2.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "ear-right-1.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "ear-right-2.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "pet-1.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "pet-2.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "pet-3.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "pet-4.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "play-1.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "play-2.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "play-3.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "play-4.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "play-5.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "play-6.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "eat-1.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "eat-2.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "eat-3.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "eat-4.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "eat-5.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "sleep-1.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "sleep-2.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "sleep-3.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "sleep-4.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "sad-1.png",
+      "fixedPawsAndLowerTorso": true
+    },
+    {
+      "file": "sad-2.png",
+      "fixedPawsAndLowerTorso": true
+    }
+  ]
+}

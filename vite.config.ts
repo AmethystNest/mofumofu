@@ -19,16 +19,16 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['icons/apple-touch-icon.png', 'icons/icon.svg'],
       manifest: {
-        name: '配給は一人分',
-        short_name: '配給は一人分',
-        description: '住民の消えた管理都市で、一人分の配給を犬と分け合う育成シミュレーション。',
+        name: 'Mofumofu — 灯りの残る部屋',
+        short_name: 'Mofumofu',
+        description: '静かな災害後の街で、犬とあたたかな日々を育てるペット育成ゲーム。',
         lang: 'ja',
         start_url: '.',
         scope: '.',
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#161B20',
-        theme_color: '#20262B',
+        background_color: '#f8f4ed',
+        theme_color: '#f8f4ed',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -38,7 +38,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2,json,ink,mp3,m4a,ogg}'],
         // 比較用の大きなスプライトは事前キャッシュしない
-        globIgnores: ['lab/**'],
+        globIgnores: ['lab/**', 'assets/dog/motions-v1/*.webp', 'assets/dog/motions-v1/validation.json'],
         navigateFallback: 'index.html',
         // 比較ページなど index.html 以外のページへの遷移は、トップページで代替しない
         navigateFallbackDenylist: [/\/lab\//],
