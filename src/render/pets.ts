@@ -42,7 +42,7 @@ export const PETS: Record<Species, PetDef> = {
     width: 320,
     height: 320,
     layout: { w: 320, h: 320, head: [160, 58], floor: [160, 306], tailArea: [215, 175, 300, 290] },
-    box: { w: 48, ar: 1, fy: 287 / 320 },
+    box: { w: 49, ar: 1, fy: 287 / 320 },
     img: { left: 0, top: 0, w: 100 },
     create: (image) => createDogRig(image).catch(() => createDogMotion(image)),
   },

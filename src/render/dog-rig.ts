@@ -13,6 +13,7 @@
  */
 import type PhaserNS from 'phaser';
 import type { DogMotion, Motion } from './dog-motion';
+import { enterExtra, EXTRA_MOTIONS, FIDGETS, type GaitKit } from './gaits';
 import { Spring, clamp, gazeFromDir, gazeTarget, randBetween, squashX, velocity } from './rig-math';
 
 type Frame = { src: string; ms: number };
@@ -21,7 +22,7 @@ type Meta = { parts: Record<string, Part>; eyes: { L: { c: [number, number]; r: 
 
 const FLOOR: [number, number] = [160, 287];      // 床に着く点（伸び縮みの支点）
 const HEAD_H = 240;                              // 床から頭のてっぺんまで（px）
-const RIG_MOTIONS: Motion[] = ['idle', 'pet', 'play'];
+const RIG_MOTIONS: Motion[] = ['idle', 'pet', 'play', ...EXTRA_MOTIONS];
 const FADE = 110;
 const GAZE_PX = 0.55;                            // 視線（rig-math の値）→ 目のシールのずれ px
 const EYE_HOME: [number, number] = [-FLOOR[0], -FLOOR[1]];
@@ -275,6 +276,7 @@ async function init(): Promise<Inner> {
       setBreath(0.012, 1750);
       if (m === 'pet') enterPet();
       else if (m === 'play') enterPlay();
+      else if (EXTRA_MOTIONS.includes(m)) enterExtra(m, kit(), 0.42);
       else settle();
       if (!wasRig) settle(160);
     } else {
@@ -290,6 +292,14 @@ async function init(): Promise<Inner> {
   }
 
   const canvas = () => game.canvas;
+
+  const kit = (): GaitKit => ({
+    S: S as unknown as Record<string, number>,
+    tw: (c) => tw(c as PhaserNS.Types.Tweens.TweenBuilderConfig),
+    chain: (c) => chain(c),
+    eyes: (blink, squint, ms = 160) => tw({ targets: S, blink, squint, duration: ms, ease: 'Sine.Out' }),
+    settle: (ms, over) => { settleTween = sc.tweens.add({ targets: S, ...STATE_REST, ...(over ?? {}), duration: ms ?? 240, ease: 'Back.Out' }); },
+  });
 
   function enterPet() {
     tw({ targets: S, squint: 1, earBase: 3, duration: 160, ease: 'Sine.Out' });
@@ -321,12 +331,20 @@ async function init(): Promise<Inner> {
   function wake() { if (sleeping) { game.loop.wake(); sleeping = false; } }
 
   // ---- 自動で起こす「生きている」動き ----------------------------------------
-  const clock = { blink: 1200, gaze: 900, flick: 3500, wag: 5000, curious: 8000 };
+  const clock = { blink: 1200, gaze: 900, flick: 3500, wag: 5000, curious: 8000, fidget: 12000 };
   let ambientTail: PhaserNS.Tweens.Tween | undefined;
   const ambient = (dt: number) => {
     if (!RIG_MOTIONS.includes(active) || showing !== 'rig' || reduced) return;
     clock.blink -= dt; clock.gaze -= dt; clock.flick -= dt; clock.wag -= dt; clock.curious -= dt;
     const calm = active === 'idle';
+    if (calm && !stroking && (!reactTimer || reactTimer.getProgress() >= 1)) {
+      clock.fidget -= dt;
+      if (clock.fidget <= 0) {
+        clock.fidget = randBetween(Math.random, 14000, 26000);
+        const f = FIDGETS[Math.floor(Math.random() * FIDGETS.length)]!;
+        api.react(f.m, f.ms);
+      }
+    }
     if (clock.blink <= 0) {
       clock.blink = randBetween(Math.random, 2200, 5500);
       const double = Math.random() < 0.18;

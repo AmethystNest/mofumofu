@@ -116,7 +116,7 @@ export function runIntro(host: HTMLElement): Promise<IntroResult> {
     async function choose() {
       const motions: Partial<Record<Species, PetMotion>> = {};
       const defs = PETS;
-      const home: Record<Species, { cx: number; scale: number }> = { dog: { cx: 30, scale: 0.62 }, cat: { cx: 70, scale: 0.7 } };
+      const home: Record<Species, { cx: number; scale: number }> = { dog: { cx: 30, scale: 0.68 }, cat: { cx: 70, scale: 0.68 } };
       const box = (id: Species) => $<HTMLElement>(`#i-${id}-box`);
       for (const id of ["dog", "cat"] as Species[]) placePet(box(id), defs[id], { ...home[id], feet: 0.8 });
       // 動かす部品は、現れる前に読み込み始めておく
@@ -164,7 +164,7 @@ export function runIntro(host: HTMLElement): Promise<IntroResult> {
         if (id === "dog") {
           note("……こちらを見ている。");
           m?.look(0);
-          placePet(box("dog"), defs.dog, { cx: 38, scale: 0.72, feet: 0.81 });
+          placePet(box("dog"), defs.dog, { cx: 38, scale: 0.76, feet: 0.81 });
           for (const t of [300, 780, 1250]) later(() => ambient.blip("step"), t);
           later(() => ambient.blip("collar"), 700);
           later(() => m?.react("idle", 2400), 1700);

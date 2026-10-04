@@ -9,7 +9,9 @@
 import { BREATH, PAW_Y, SIZE, strips } from './warp';
 import { createGlRenderer, type DogRenderer } from './dog-gl';
 
-export type Motion = 'idle' | 'pet' | 'play' | 'eat' | 'sleep' | 'sad';
+export type Motion = 'idle' | 'pet' | 'play' | 'eat' | 'sleep' | 'sad' | 'walk' | 'stretch' | 'shake' | 'sniff';
+/** 一枚絵のコマしか持たない代替の描画では、歩く＝弾む、その他の仕草＝待機で表す */
+const toBase = (m: Motion): Motion => (m === 'walk' ? 'play' : m === 'stretch' || m === 'shake' || m === 'sniff' ? 'idle' : m);
 type Frame = { src: string; ms: number };
 const FADE_MS = 140;
 
@@ -76,6 +78,7 @@ export async function createDogMotion(image: HTMLImageElement): Promise<DogMotio
   }
 
   function begin(m: Motion) {
+    m = toBase(m);
     if (m === active) return;
     // 前の反応のコマを残したまま、新しい反応へ短く溶かす
     prev = active; prevElapsed = elapsed;

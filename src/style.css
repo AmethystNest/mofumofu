@@ -221,6 +221,13 @@ main.is-home .eyebrow {
 .pet-eat { animation: pet-chomp 0.38s ease-in-out infinite; }
 .pet-sleep { transform: scaleY(0.93) scaleX(1.03); animation: pet-breathe 5s ease-in-out infinite; }
 .pet-sad { transform: scaleY(0.985); }
+.pet-walk { animation: pet-walk 0.38s ease-in-out infinite; }
+.pet-stretch { animation: pet-stretch 2s ease-in-out; }
+.pet-shake { animation: pet-shake 0.12s ease-in-out 8; }
+.pet-sniff { animation: pet-chomp 0.22s ease-in-out infinite; }
+@keyframes pet-walk { 50% { transform: translateY(-3%) scale(0.99, 1.03) rotate(1.4deg); } }
+@keyframes pet-stretch { 50% { transform: scale(0.96, 1.1); } }
+@keyframes pet-shake { 50% { transform: rotate(4deg); } 0%, 100% { transform: rotate(-4deg); } }
 @keyframes pet-breathe { 50% { transform: scale(1.006, 1.014); } }
 @keyframes pet-bounce { 40% { transform: translateY(-2%) scale(0.98, 1.04); } 70% { transform: scale(1.02, 0.97); } }
 @keyframes pet-hop { 35% { transform: translateY(-6%) scale(0.96, 1.07); } 70% { transform: scale(1.05, 0.88); } }

@@ -10,6 +10,7 @@
  */
 import type PhaserNS from 'phaser';
 import type { DogMotion as PetMotion, Motion } from './dog-motion';
+import { enterExtra, EXTRA_MOTIONS, FIDGETS, type GaitKit } from './gaits';
 import { Spring, clamp, gazeFromDir, gazeTarget, randBetween, squashX, velocity } from './rig-math';
 
 export type { PetMotion, Motion };
@@ -245,9 +246,18 @@ async function init(): Promise<Inner> {
       setBreath(0.012, 1750);
       if (m === 'pet') { eyes(0, 1); enterPet(); }
       else if (m === 'play') { eyes(0, 0); enterPlay(); }
+      else if (EXTRA_MOTIONS.includes(m)) enterExtra(m, kit, 1);
       else { eyes(0, 0); settle(); }
     }
   }
+
+  const kit: GaitKit = {
+    S: S as unknown as Record<string, number>,
+    tw: (c) => tw(c as PhaserNS.Types.Tweens.TweenBuilderConfig),
+    chain: (c) => chain(c),
+    eyes: (blink, squint, ms = 160) => tw({ targets: S, blink, squint, duration: ms, ease: 'Sine.Out' }),
+    settle: (ms, over) => settle(ms, over as Partial<typeof STATE_REST>),
+  };
 
   function enterPet() {
     tw({ targets: S, earBase: 7, duration: 160, ease: 'Sine.Out' });
@@ -279,12 +289,21 @@ async function init(): Promise<Inner> {
   function wake() { if (sleeping) { game.loop.wake(); sleeping = false; } }
 
   // ---- 自動で起こす「生きている」動き ----------------------------------------
-  const clock = { blink: 1200, gaze: 900, flick: 3500, wag: 5000, curious: 8000 };
+  const clock = { blink: 1200, gaze: 900, flick: 3500, wag: 5000, curious: 8000, fidget: 12000 };
   let ambientTail: PhaserNS.Tweens.Tween | undefined;
   const ambient = (dtMs: number) => {
     if (reduced || active === 'sleep' || active === 'sad') return;
     clock.blink -= dtMs; clock.gaze -= dtMs; clock.flick -= dtMs; clock.wag -= dtMs; clock.curious -= dtMs;
     const calm = active === 'idle';
+    if (calm && !stroking && (!reactTimer || reactTimer.getProgress() >= 1)) {
+      clock.fidget -= dtMs;
+      if (clock.fidget <= 0) {
+        // ふとした仕草（のび・ぶるぶる・くんくん）。間隔と種類はばらつかせる
+        clock.fidget = randBetween(Math.random, 14000, 26000);
+        const f = FIDGETS[Math.floor(Math.random() * FIDGETS.length)]!;
+        api.react(f.m, f.ms);
+      }
+    }
     if (clock.blink <= 0 && active !== 'pet') {
       clock.blink = randBetween(Math.random, 2200, 5500);
       const double = Math.random() < 0.18;

@@ -6,6 +6,7 @@ import type { Motion, PetMotion } from "./render/pet-rig";
 import { PETS, petBoxHtml, placePet } from "./render/pets";
 import { sp } from "./content/species";
 import * as ambient from "./platform/ambient";
+import { createWander, rememberedCx, type Wander } from "./render/wander";
 import { createEffects, type Effects } from "./render/effects";
 import { isStroking, type TouchPoint } from "./render/gesture";
 const esc = (s: string) =>
@@ -26,6 +27,8 @@ let save: Save = loadSave() ?? {
 };
 const st = save.game;
 let resetting = false;
+/** 導入を終えるまでは保存しない（途中で画面を閉じても、次回は導入から） */
+let started = !!save.updatedAt;
 const SYS_FEED = "空腹を検知しました。";
 const SYS_ATE = "栄養摂取を確認。生存状態：正常。";
 let tab = "home",
@@ -37,7 +40,8 @@ app.innerHTML = `<main><header><div><p class="eyebrow" id="eyebrow">MOFUMOFU</p>
 const view = document.querySelector<HTMLDivElement>("#view")!,
   dialog = document.querySelector<HTMLDialogElement>("#dialog")!,
   content = document.querySelector<HTMLDivElement>("#dialog-content")!;
-let motion: PetMotion | undefined,
+let wander: Wander | undefined,
+  motion: PetMotion | undefined,
   effects: Effects | undefined,
   sighTimer = 0,
   renderId = 0;
@@ -103,6 +107,8 @@ function stats() {
 }
 async function render() {
   const id = ++renderId;
+  wander?.destroy();
+  wander = undefined;
   motion?.destroy();
   effects?.destroy();
   window.clearInterval(sighTimer);
@@ -159,7 +165,7 @@ async function render() {
   const apEl = document.querySelector<HTMLElement>("#ap-dots")!;
   apEl.setAttribute("aria-label", `行動力 ${st.ap}回`);
   apEl.innerHTML = [0, 1, 2].map((i) => `<i class="${i < st.ap ? "filled" : ""}"></i>`).join("");
-  placePet(view.querySelector<HTMLElement>(".pet-box")!, def);
+  placePet(view.querySelector<HTMLElement>(".pet-box")!, def, { cx: rememberedCx() });
   bindDogTouch(view.querySelector<HTMLButtonElement>("#dog")!);
   view
     .querySelectorAll<HTMLButtonElement>("[data-action]")
@@ -173,6 +179,16 @@ async function render() {
       return;
     }
     motion = player;
+    const sceneEl = view.querySelector<HTMLElement>(".scene")!;
+    wander = createWander(view.querySelector<HTMLElement>(".pet-box")!, sceneEl, () => motion);
+    wander.auto(() => tab === "home" && !st.pendingNight && st.dog.energy >= 20 && !dialog.open);
+    // 部屋の床をタップすると、そこへ歩いていく
+    sceneEl.addEventListener("click", (e) => {
+      if ((e.target as Element).closest(".pet-button") || dialog.open) return;
+      const r = sceneEl.getBoundingClientRect();
+      if ((e.clientY - r.top) / r.height < 0.6 || st.pendingNight || st.dog.energy < 20) return;
+      void wander?.walkTo(((e.clientX - r.left) / r.width) * 100);
+    });
     effects = createEffects(view.querySelector<HTMLElement>(".scene")!, view.querySelector<HTMLElement>("#dog")!, def.layout);
     const passive: Motion = st.pendingNight ? "sleep" : st.dog.energy < 20 ? "sad" : "idle";
     motion.set(passive);
@@ -181,6 +197,7 @@ async function render() {
       effects.sigh();
       sighTimer = window.setInterval(() => effects?.sigh(), 7000);
     }
+    if (import.meta.env.DEV) (window as unknown as { __play?: unknown }).__play = (m: Motion, ms?: number) => motion?.react(m, ms);
     const queued = afterDog;
     afterDog = [];
     for (const fn of queued) fn();
@@ -189,6 +206,7 @@ async function render() {
   }
 }
 function pet() {
+  wander?.stop();
   const r = C.pet(st);
   const first = save.tutorial === "pet";
   if (first) save.tutorial = "done";
@@ -311,7 +329,9 @@ function feed() {
               ? `${st.name}がゆっくり、ごはんを味わった。`
               : "あなたも、ひと息。明日のために。";
         update();
-        setTimeout(() => {
+        setTimeout(async () => {
+          // 離れた所にいたら、器のある中央へ歩いてきてから食べる
+          if (r.toDog) await new Promise<void>((done) => withDog(() => void (wander?.walkTo(50) ?? Promise.resolve()).then(done)));
           react(r.toDog ? "eat" : "idle", 2600);
           if (r.toDog) withDog(() => effects!.bowl(2600));
         }, 200);
@@ -549,7 +569,7 @@ document.querySelector("#settings")!.addEventListener("click", () =>
   ),
 );
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && !resetting) {
+  if (document.hidden && !resetting && started) {
     st.lastSeen = Date.now();
     store();
   }
@@ -570,6 +590,7 @@ if (save.updatedAt) {
     st.name = r.name;
     save.tutorial = "feed";
     feedback = SYS_FEED;
+    started = true;
     persist(save);
     await render();
     await r.reveal();
