@@ -40,7 +40,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2,json,ink,mp3,m4a,ogg}'],
         // 比較用の大きなスプライトは事前キャッシュしない
         // 旧ペット（犬）の素材は今のゲームでは使わないので事前キャッシュしない（比較用 lab は別扱い）
-        globIgnores: ['lab/**', 'assets/dog/**'],
+        globIgnores: ['lab/**', 'assets/dog/motions-v1/*.webp', 'assets/dog/motions-v1/validation.json'],
         navigateFallback: 'index.html',
         // 比較ページなど index.html 以外のページへの遷移は、トップページで代替しない
         navigateFallbackDenylist: [/\/lab\//],

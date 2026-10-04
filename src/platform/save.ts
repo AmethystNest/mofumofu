@@ -1,9 +1,16 @@
 import { migrate, type GameState } from "../core";
+import type { Species } from "../content/species";
+export type { Species };
+/** 導入のあとの最初の操作（食事→撫でる）。undefined は「済み」（導入より前の保存） */
+export type Tutorial = "feed" | "pet" | "done";
 export interface Save {
   version: 2;
   game: GameState;
   journal: { day: number; title: string; text: string }[];
   updatedAt: number;
+  /** 保護したペット。導入より前の保存には無いので、読み込み時に猫（現在の既定）を補う */
+  species: Species;
+  tutorial: Tutorial;
 }
 const KEY = "mofumofu-save-v2";
 export function decodeSave(raw: string): Save | null {
@@ -84,6 +91,8 @@ export function decodeSave(raw: string): Save | null {
             .slice(-100)
         : [],
       updatedAt: Number(value.updatedAt) || 0,
+      species: value.species === "dog" ? "dog" : "cat",
+      tutorial: ["feed", "pet"].includes(value.tutorial) ? value.tutorial : "done",
     };
   } catch {
     return null;

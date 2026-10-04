@@ -2,7 +2,10 @@ import "./style.css";
 import * as C from "./core";
 import { stories } from "./content/chapter";
 import { loadSave, persist, type Save } from "./platform/save";
-import { createPetFallback, createPetRig, PET_LAYOUT, type Motion, type PetMotion } from "./render/pet-rig";
+import type { Motion, PetMotion } from "./render/pet-rig";
+import { PETS, petBoxHtml, placePet } from "./render/pets";
+import { sp } from "./content/species";
+import * as ambient from "./platform/ambient";
 import { createEffects, type Effects } from "./render/effects";
 import { isStroking, type TouchPoint } from "./render/gesture";
 const esc = (s: string) =>
@@ -18,10 +21,16 @@ let save: Save = loadSave() ?? {
   game: C.newGame("ハル", Math.floor(Math.random() * 2147483646) + 1),
   journal: [],
   updatedAt: 0,
+  species: "cat",
+  tutorial: "feed",
 };
 const st = save.game;
+const SYS_FEED = "空腹を検知しました。";
+const SYS_ATE = "栄養摂取を確認。生存状態：正常。";
 let tab = "home",
   feedback = "今日も、この小さな部屋から。";
+if (save.updatedAt && save.tutorial === "feed") feedback = SYS_FEED;
+if (save.updatedAt && save.tutorial === "pet") feedback = SYS_ATE;
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<main><header><div><p class="eyebrow" id="eyebrow">MOFUMOFU</p><h1>灯りの残る部屋</h1></div><div class="head-right"><span class="ap" id="ap-dots"></span><button id="settings" class="icon" aria-label="設定">☷</button></div></header><div id="view"></div><nav aria-label="メイン"><button data-tab="home">⌂ <span>おへや</span></button><button data-tab="diary">▤ <span>日記</span></button><button data-tab="supplies">◇ <span>もちもの</span></button></nav><p class="save-note" id="save-note">お世話のあとに自動保存</p></main><dialog id="dialog"><div id="dialog-content"></div></dialog>`;
 const view = document.querySelector<HTMLDivElement>("#view")!,
@@ -37,6 +46,13 @@ function withDog(fn: () => void) {
   if (motion && effects) fn();
   else afterDog.push(fn);
 }
+const localized = (s: (typeof stories)[keyof typeof stories]) => ({
+  ...s,
+  title: sp(s.title, save.species),
+  lines: s.lines.map((l) => sp(l, save.species)),
+  choices: s.choices.map((l) => sp(l, save.species)),
+  after: s.after.map((l) => sp(l, save.species)),
+});
 function store() {
   if (!persist(save))
     document.querySelector("#save-note")!.textContent =
@@ -114,7 +130,7 @@ async function render() {
     return;
   }
   if (tab === "supplies") {
-    view.innerHTML = `<section class="page"><p class="eyebrow">SMALL TREASURES</p><h2>暮らしのもちもの</h2><p class="muted">必要なものを、少しずつ。</p>${(["ration", "can", "dogfood"] as C.ItemId[]).map((k) => `<article class="inventory"><h3>${esc(C.ITEMS[k])}</h3><strong>${st.inv[k]} 個</strong></article>`).join("")}<article><h3>部屋に持ち帰ったもの</h3><p>${
+    view.innerHTML = `<section class="page"><p class="eyebrow">SMALL TREASURES</p><h2>暮らしのもちもの</h2><p class="muted">必要なものを、少しずつ。</p>${(["ration", "can", "dogfood"] as C.ItemId[]).map((k) => `<article class="inventory"><h3>${esc(sp(C.ITEMS[k], save.species))}</h3><strong>${st.inv[k]} 個</strong></article>`).join("")}<article><h3>部屋に持ち帰ったもの</h3><p>${
       (["ball", "blanket", "map"] as C.GearId[])
         .filter((k) => st.gear[k])
         .map(
@@ -136,11 +152,13 @@ async function render() {
     night: "おやすみの時間",
   };
   const time = C.timeOfDay(st);
-  view.innerHTML = `<section class="stage ${time}" aria-label="${times[time]}の部屋"><div class="scene ${time}"><div class="room-bg"></div><div class="pet-box"><span class="pet-shadow"></span><button class="pet-button" id="dog" aria-label="${esc(st.name)}をなでる"><img class="pet-img" src="${import.meta.env.BASE_URL}assets/pet/cat/cat.png" width="731" height="695" alt="灰青色の猫の${esc(st.name)}"></button></div></div><div class="hud"><div class="stats">${stats()}</div></div><section class="care"><p id="feedback" role="status">${esc(feedback)}</p><div class="actions"><button data-action="feed"><b>◒</b>ごはん<small>ふたりで</small></button><button data-action="pet"><b>♡</b>なでる<small>そっと</small></button><button data-action="play" ${st.ap < 1 || !!st.pendingNight ? "disabled" : ""}><b>✧</b>あそぶ<small>行動 1</small></button><button data-action="explore" ${st.ap < 2 || !!st.pendingNight ? "disabled" : ""}><b>↗</b>さんぽ<small>行動 2</small></button><button data-action="rest" class="rest"><b>☾</b>${st.pendingNight ? "夜を読む" : "ねる"}<small>夜のひととき</small></button></div></section></section>`;
+  const def = PETS[save.species];
+  view.innerHTML = `<section class="stage ${time}" aria-label="${times[time]}の部屋"><div class="scene ${time}"><div class="room-bg"></div>${petBoxHtml(def, "dog", `${esc(st.name)}をなでる`, `${def.look}の${esc(st.name)}`)}</div><div class="hud"><div class="stats">${stats()}</div></div><section class="care"><p id="feedback" role="status" class="${save.tutorial === "done" ? "" : "sys"}">${esc(feedback)}</p><div class="actions"><button data-action="feed" class="${save.tutorial === "feed" ? "guide" : ""}"><b>◒</b>ごはん<small>ふたりで</small></button><button data-action="pet"><b>♡</b>なでる<small>そっと</small></button><button data-action="play" ${st.ap < 1 || !!st.pendingNight ? "disabled" : ""}><b>✧</b>あそぶ<small>行動 1</small></button><button data-action="explore" ${st.ap < 2 || !!st.pendingNight ? "disabled" : ""}><b>↗</b>さんぽ<small>行動 2</small></button><button data-action="rest" class="rest"><b>☾</b>${st.pendingNight ? "夜を読む" : "ねる"}<small>夜のひととき</small></button></div></section></section>`;
   document.querySelector("#eyebrow")!.textContent = `${st.name}  ／  DAY ${String(st.day).padStart(2, "0")}  ／  ${times[time]}`;
   const apEl = document.querySelector<HTMLElement>("#ap-dots")!;
   apEl.setAttribute("aria-label", `行動力 ${st.ap}回`);
   apEl.innerHTML = [0, 1, 2].map((i) => `<i class="${i < st.ap ? "filled" : ""}"></i>`).join("");
+  placePet(view.querySelector<HTMLElement>(".pet-box")!, def);
   bindDogTouch(view.querySelector<HTMLButtonElement>("#dog")!);
   view
     .querySelectorAll<HTMLButtonElement>("[data-action]")
@@ -148,13 +166,13 @@ async function render() {
   try {
     // パーツ式（Phaser）を優先し、使えない端末では一枚絵（CSS のゆらぎ）に切り替える
     const petImage = view.querySelector<HTMLImageElement>("img.pet-img")!;
-    const player = await createPetRig(petImage).catch(() => createPetFallback(petImage));
+    const player = await def.create(petImage);
     if (id !== renderId) {
       player.destroy();
       return;
     }
     motion = player;
-    effects = createEffects(view.querySelector<HTMLElement>(".scene")!, view.querySelector<HTMLElement>("#dog")!, PET_LAYOUT);
+    effects = createEffects(view.querySelector<HTMLElement>(".scene")!, view.querySelector<HTMLElement>("#dog")!, def.layout);
     const passive: Motion = st.pendingNight ? "sleep" : st.dog.energy < 20 ? "sad" : "idle";
     motion.set(passive);
     effects.sleepy(passive === "sleep");
@@ -171,8 +189,14 @@ async function render() {
 }
 function pet() {
   const r = C.pet(st);
+  const first = save.tutorial === "pet";
+  if (first) save.tutorial = "done";
   store();
-  message(
+  if (first) {
+    // 最初のなでる：反応のあとに、システムの一言だけを添える（感情の説明はしない）
+    window.setTimeout(() => message("……"), 1900);
+    window.setTimeout(() => message("この行動に、生存上の必要性はありません。"), 3500);
+  } else message(
     r.fx.length
       ? `${st.name}が目を細めた。手の温もりを、覚えている。`
       : `${st.name}は満ち足りた顔で、あなたの手に頭をあずけた。`,
@@ -195,8 +219,9 @@ function bindDogTouch(dog: HTMLButtonElement) {
   /** 指の位置（ペットの論理座標）。ハートは手のすぐ上に出す */
   const at = (e: PointerEvent): [number, number] => {
     const r = dog.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width) * PET_LAYOUT.w, y = ((e.clientY - r.top) / r.height) * PET_LAYOUT.h;
-    return [Math.max(190, Math.min(680, x)), Math.max(120, Math.min(540, y - 90))];
+    const L = PETS[save.species].layout;
+    const x = ((e.clientX - r.left) / r.width) * L.w, y = ((e.clientY - r.top) / r.height) * L.h;
+    return [Math.max(L.w * 0.22, Math.min(L.w * 0.78, x)), Math.max(L.h * 0.14, Math.min(L.h * 0.64, y - L.h * 0.1))];
   };
   const end = (e: PointerEvent, cancelled: boolean) => {
     if (!track.length) return;
@@ -248,7 +273,7 @@ function feed() {
   for (const item of ["ration", "can", "dogfood"] as C.ItemId[]) {
     const row = document.createElement("div");
     row.className = "food-row";
-    row.innerHTML = `<h3>${esc(C.ITEMS[item])} <small>残り ${st.inv[item]}</small></h3>`;
+    row.innerHTML = `<h3>${esc(sp(C.ITEMS[item], save.species))} <small>残り ${st.inv[item]}</small></h3>`;
     for (const target of (item === "ration"
       ? ["dog", "half", "me"]
       : item === "can"
@@ -265,14 +290,21 @@ function feed() {
       b.onclick = () => {
         const r = C.feed(st, item, target);
         if (!r.ok) {
-          show("ごはん", `<p>${esc(r.msg)}</p>`, [
+          show("ごはん", `<p>${esc(sp(r.msg, save.species))}</p>`, [
             { label: "戻る", action: feed },
           ]);
           return;
         }
         dialog.close();
-        feedback =
-          target === "half"
+        const firstMeal = save.tutorial === "feed" && r.toDog;
+        if (firstMeal) {
+          save.tutorial = "pet";
+          // しばらくして、ペットがこちらを見る
+          window.setTimeout(() => withDog(() => motion!.look(0)), 3600);
+        }
+        feedback = firstMeal
+          ? SYS_ATE
+          : target === "half"
             ? "ひとつのごはんを、ふたりで。"
             : target === "dog"
               ? `${st.name}がゆっくり、ごはんを味わった。`
@@ -309,7 +341,7 @@ function explore() {
         }
         const r = C.explore(st, loc, together);
         if (!r.ok) {
-          message(r.msg);
+          message(sp(r.msg, save.species));
           dialog.close();
           return;
         }
@@ -317,7 +349,7 @@ function explore() {
           .filter(([k, n]) => k !== "none" && n)
           .map(
             ([k, n]) =>
-              `${({ ration: "配給食", can: "缶詰", dogfood: "犬用ごはん", ball: "古いボール", blanket: "毛布", map: "街の地図" } as Record<string, string>)[k]} ×${n}`,
+              `${({ ration: "配給食", can: "缶詰", dogfood: sp(C.ITEMS.dogfood, save.species), ball: "古いボール", blanket: "毛布", map: "街の地図" } as Record<string, string>)[k]} ×${n}`,
           )
           .join("、");
         const text =
@@ -339,7 +371,7 @@ function explore() {
 }
 function night() {
   const pending = C.rest(st),
-    story = stories[pending.id];
+    story = localized(stories[pending.id]);
   update();
   const finish = (index: number) => {
     if (!pending.resolved) {
@@ -400,7 +432,7 @@ const actions: Record<string, () => void> = {
   play: () => {
     const r = C.play(st);
     if (!r.ok) {
-      message(r.msg);
+      message(sp(r.msg, save.species));
       return;
     }
     feedback = `${st.name}のしっぽが、楽しそうに揺れた。`;
@@ -421,7 +453,7 @@ app.querySelectorAll<HTMLButtonElement>("nav button").forEach(
 document.querySelector("#settings")!.addEventListener("click", () =>
   show(
     "暮らしの設定",
-    `<label>犬の名前<input id="pet-name" maxlength="8" value="${esc(st.name)}"></label><p class="muted">保存はこの端末のブラウザ内です。機種変更の前に書き出してください。音声はありません。端末の「視差効果を減らす」で動きを控えられます。</p>`,
+    `<label>名前<input id="pet-name" maxlength="8" value="${esc(st.name)}"></label><p class="muted">保存はこの端末のブラウザ内です。機種変更の前に書き出してください。環境音は端末内で合成しています。端末の「視差効果を減らす」で動きを控えられます。</p>`,
     [
       {
         label: "名前を保存",
@@ -433,6 +465,14 @@ document.querySelector("#settings")!.addEventListener("click", () =>
               .slice(0, 8) || "ハル";
           dialog.close();
           update();
+        },
+      },
+      {
+        label: ambient.isMuted() ? "環境音を入れる" : "環境音を切る",
+        action: () => {
+          ambient.setMuted(!ambient.isMuted());
+          void ambient.unlock().then(() => ambient.mood(ambient.isMuted() ? "off" : "room"));
+          dialog.close();
         },
       },
       {
@@ -494,18 +534,24 @@ document.addEventListener("visibilitychange", () => {
     store();
   }
 });
-render();
-if (!save.updatedAt)
-  show(
-    "小さな灯りを、ふたりで",
-    '<p>災害のあと、静かになった街。<br>古い環境端末〈ミナト〉が残る部屋で、一匹の犬と出会いました。</p><p>ごはんを分け、街を歩き、夜を過ごす。<br>壊れた世界に、あたたかな日々を育てていく物語です。</p><p class="muted">お世話はあなたのペースで。離れている間に、ごはんや信頼は減りません。</p>',
-    [
-      {
-        label: "ふたりの暮らしをはじめる",
-        action: () => {
-          dialog.close();
-          store();
-        },
-      },
-    ],
+if (save.updatedAt) {
+  // 導入を済ませた保存：最初のタップで環境音を使えるようにする
+  document.addEventListener(
+    "pointerdown",
+    () => void ambient.unlock().then(() => ambient.mood(ambient.isMuted() ? "off" : "room")),
+    { once: true },
   );
+  render();
+} else {
+  // はじめて：導入（起動 → 記録 → 復元 → 保護する子を選ぶ → 名称 → DAY 01）
+  void import("./ui/intro").then(async ({ runIntro }) => {
+    const r = await runIntro(document.body);
+    save.species = r.species;
+    st.name = r.name;
+    save.tutorial = "feed";
+    feedback = SYS_FEED;
+    persist(save);
+    await render();
+    await r.reveal();
+  });
+}
