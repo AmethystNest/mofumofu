@@ -1,7 +1,7 @@
 import "./style.css";
 import * as C from "./core";
 import { stories } from "./content/chapter";
-import { loadSave, persist, type Save } from "./platform/save";
+import { clearSave, loadSave, persist, type Save } from "./platform/save";
 import type { Motion, PetMotion } from "./render/pet-rig";
 import { PETS, petBoxHtml, placePet } from "./render/pets";
 import { sp } from "./content/species";
@@ -25,6 +25,7 @@ let save: Save = loadSave() ?? {
   tutorial: "feed",
 };
 const st = save.game;
+let resetting = false;
 const SYS_FEED = "空腹を検知しました。";
 const SYS_ATE = "栄養摂取を確認。生存状態：正常。";
 let tab = "home",
@@ -476,6 +477,25 @@ document.querySelector("#settings")!.addEventListener("click", () =>
         },
       },
       {
+        label: "最初からはじめる",
+        action: () =>
+          show(
+            "最初からはじめますか？",
+            "<p>この端末の記録を消して、導入から遊び直します。<br>元に戻せません。残したい場合は、先に「記録を書き出す」を使ってください。</p>",
+            [
+              {
+                label: "記録を消して最初から",
+                action: () => {
+                  resetting = true; // 再読み込み時の自動保存で、消した記録が書き戻されないように
+                  clearSave();
+                  location.reload();
+                },
+              },
+              { label: "やめる", action: () => dialog.close() },
+            ],
+          ),
+      },
+      {
         label: "記録を書き出す",
         action: () => {
           const a = document.createElement("a"),
@@ -529,7 +549,7 @@ document.querySelector("#settings")!.addEventListener("click", () =>
   ),
 );
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
+  if (document.hidden && !resetting) {
     st.lastSeen = Date.now();
     store();
   }

@@ -116,3 +116,12 @@ export function persist(save: Save) {
     return false;
   }
 }
+/** 保存を消して、導入からやり直せるようにする */
+export function clearSave() {
+  try {
+    localStorage.removeItem(KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
