@@ -1,0 +1,252 @@
+{
+ "frames": {
+  "base": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 731,
+    "h": 695
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 731,
+    "h": 695
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 731,
+    "h": 695
+   }
+  },
+  "earL": {
+   "frame": {
+    "x": 733,
+    "y": 0,
+    "w": 242,
+    "h": 240
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 242,
+    "h": 240
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 242,
+    "h": 240
+   }
+  },
+  "earR": {
+   "frame": {
+    "x": 977,
+    "y": 0,
+    "w": 243,
+    "h": 240
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 243,
+    "h": 240
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 243,
+    "h": 240
+   }
+  },
+  "tail": {
+   "frame": {
+    "x": 1222,
+    "y": 0,
+    "w": 227,
+    "h": 240
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 227,
+    "h": 240
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 227,
+    "h": 240
+   }
+  },
+  "eyeOpenR": {
+   "frame": {
+    "x": 1451,
+    "y": 0,
+    "w": 147,
+    "h": 146
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 147,
+    "h": 146
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 147,
+    "h": 146
+   }
+  },
+  "eyeHalfR": {
+   "frame": {
+    "x": 1600,
+    "y": 0,
+    "w": 147,
+    "h": 146
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 147,
+    "h": 146
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 147,
+    "h": 146
+   }
+  },
+  "eyeClosedR": {
+   "frame": {
+    "x": 1749,
+    "y": 0,
+    "w": 147,
+    "h": 146
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 147,
+    "h": 146
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 147,
+    "h": 146
+   }
+  },
+  "eyeHappyR": {
+   "frame": {
+    "x": 1898,
+    "y": 0,
+    "w": 147,
+    "h": 146
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 147,
+    "h": 146
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 147,
+    "h": 146
+   }
+  },
+  "eyeOpenL": {
+   "frame": {
+    "x": 0,
+    "y": 697,
+    "w": 146,
+    "h": 145
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 146,
+    "h": 145
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 146,
+    "h": 145
+   }
+  },
+  "eyeHalfL": {
+   "frame": {
+    "x": 148,
+    "y": 697,
+    "w": 146,
+    "h": 145
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 146,
+    "h": 145
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 146,
+    "h": 145
+   }
+  },
+  "eyeClosedL": {
+   "frame": {
+    "x": 296,
+    "y": 697,
+    "w": 146,
+    "h": 145
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 146,
+    "h": 145
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 146,
+    "h": 145
+   }
+  },
+  "eyeHappyL": {
+   "frame": {
+    "x": 444,
+    "y": 697,
+    "w": 146,
+    "h": 145
+   },
+   "rotated": false,
+   "trimmed": false,
+   "sourceSize": {
+    "w": 146,
+    "h": 145
+   },
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 146,
+    "h": 145
+   }
+  }
+ },
+ "meta": {
+  "image": "atlas.png",
+  "size": {
+   "w": 2048,
+   "h": 1024
+  },
+  "scale": "1"
+ }
+}

@@ -1,8 +1,16 @@
 /**
- * 犬の反応に添える小さな演出（DOM＋CSSアニメーション）。
- * 位置は犬の絵（320×320）の座標で指定し、部屋カードの中の実際の位置へ換算する。
+ * ペットの反応に添える小さな演出（DOM＋CSSアニメーション）。
+ * 位置はペットの論理キャンバス（layout.w × layout.h）の座標で指定し、部屋の中の実際の位置へ換算する。
  * 端末の「動きを減らす」設定では、演出は出さない（器だけは静止で出す）。
  */
+/** ペットの論理キャンバスと、演出を出す位置（論理座標） */
+export interface PetLayout {
+  w: number; h: number;
+  head: [number, number];
+  floor: [number, number];
+  tailArea: [number, number, number, number];   // x0,y0,x1,y1
+}
+
 export interface Effects {
   hearts(count?: number, at?: [number, number]): void;
   sparkles(count?: number): void;
@@ -26,7 +34,7 @@ ${KIBBLE.map(([x, y], i) => `<ellipse class="kibble" style="--i:${KIBBLE.length 
 
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function createEffects(card: HTMLElement, dog: HTMLElement): Effects {
+export function createEffects(card: HTMLElement, dog: HTMLElement, L: PetLayout): Effects {
   const layer = document.createElement('div');
   layer.className = 'fx-layer';
   layer.setAttribute('aria-hidden', 'true');
@@ -34,10 +42,10 @@ export function createEffects(card: HTMLElement, dog: HTMLElement): Effects {
   const timers = new Set<number>();
   const later = (fn: () => void, ms: number) => { const id = window.setTimeout(() => { timers.delete(id); fn(); }, ms); timers.add(id); };
 
-  /** 犬の絵の座標（0..320）→ 部屋カード内の px */
+  /** ペットの論理座標 → 部屋内の px */
   function place([x, y]: [number, number]): [number, number] {
     const c = card.getBoundingClientRect(), d = dog.getBoundingClientRect();
-    return [d.left - c.left + (x / 320) * d.width, d.top - c.top + (y / 320) * d.height];
+    return [d.left - c.left + (x / L.w) * d.width, d.top - c.top + (y / L.h) * d.height];
   }
   function spawn(cls: string, at: [number, number], life: number, text = '', vars: Record<string, string> = {}) {
     const el = document.createElement('span');
@@ -54,24 +62,24 @@ export function createEffects(card: HTMLElement, dog: HTMLElement): Effects {
 
   let zzz = 0;
   return {
-    hearts(count = 3, at = [160, 58]) {
+    hearts(count = 3, at = L.head) {
       if (reduced()) return;
       for (let i = 0; i < count; i++) {
-        later(() => spawn('fx-heart', [at[0] + (i - (count - 1) / 2) * 26 + (Math.random() - 0.5) * 10, at[1]], 1500, '♥',
+        later(() => spawn('fx-heart', [at[0] + (i - (count - 1) / 2) * L.w * 0.07 + (Math.random() - 0.5) * L.w * 0.03, at[1]], 1500, '♥',
           { '--drift': `${(Math.random() - 0.5) * 30}px`, '--scale': `${0.8 + Math.random() * 0.5}` }), i * 140);
       }
     },
     sparkles(count = 4) {
       if (reduced()) return;
       for (let i = 0; i < count; i++) {
-        later(() => spawn('fx-spark', [238 + Math.random() * 60, 200 + Math.random() * 60], 900, '✦',
+        later(() => spawn('fx-spark', [L.tailArea[0] + Math.random() * (L.tailArea[2] - L.tailArea[0]), L.tailArea[1] + Math.random() * (L.tailArea[3] - L.tailArea[1])], 900, '✦',
           { '--drift': `${(Math.random() - 0.3) * 40}px`, '--scale': `${0.7 + Math.random() * 0.6}` }), i * 110);
       }
     },
     bowl(ms) {
       // 足元の器：中のごはんが少しずつ減っていく
       // 器は足の前に小さく置き、足先が隠れすぎないよう床側へ下げる
-      const el = spawn('fx-bowl', [160, 306], ms + 500);
+      const el = spawn('fx-bowl', L.floor, ms + 500);
       el.innerHTML = BOWL;
       el.style.setProperty('--eat', `${ms}ms`);
       if (reduced()) el.classList.add('still');
@@ -83,13 +91,13 @@ export function createEffects(card: HTMLElement, dog: HTMLElement): Effects {
     sleepy(on) {
       window.clearInterval(zzz);
       if (!on || reduced()) return;
-      const puff = () => spawn('fx-z', [206, 70], 2600, 'z', { '--scale': `${0.8 + Math.random() * 0.5}` });
+      const puff = () => spawn('fx-z', [L.head[0] + L.w * 0.16, L.head[1] - L.h * 0.02], 2600, 'z', { '--scale': `${0.8 + Math.random() * 0.5}` });
       puff();
       zzz = window.setInterval(puff, 1700);
     },
     sigh() {
       if (reduced()) return;
-      spawn('fx-sigh', [212, 64], 2200, '…');
+      spawn('fx-sigh', [L.head[0] + L.w * 0.17, L.head[1] - L.h * 0.04], 2200, '…');
     },
     destroy() {
       window.clearInterval(zzz);

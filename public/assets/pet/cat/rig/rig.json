@@ -1,0 +1,155 @@
+{
+ "source": "cat.png",
+ "width": 731,
+ "height": 695,
+ "band": 8,
+ "parts": {
+  "earL": {
+   "x": 106,
+   "y": 0,
+   "w": 242,
+   "h": 240,
+   "kind": "rope",
+   "axis": "v",
+   "root": "bottom",
+   "behind": false
+  },
+  "earR": {
+   "x": 488,
+   "y": 0,
+   "w": 243,
+   "h": 240,
+   "kind": "rope",
+   "axis": "v",
+   "root": "bottom",
+   "behind": false
+  },
+  "tail": {
+   "x": 3,
+   "y": 410,
+   "w": 227,
+   "h": 240,
+   "kind": "rope",
+   "axis": "h",
+   "root": "right",
+   "behind": true
+  },
+  "eyeOpenL": {
+   "x": 230,
+   "y": 241,
+   "w": 146,
+   "h": 145,
+   "kind": "eye",
+   "center": [
+    302.5,
+    313.0
+   ]
+  },
+  "eyeHalfL": {
+   "x": 230,
+   "y": 241,
+   "w": 146,
+   "h": 145,
+   "kind": "eye",
+   "center": [
+    302.5,
+    313.0
+   ]
+  },
+  "eyeClosedL": {
+   "x": 230,
+   "y": 241,
+   "w": 146,
+   "h": 145,
+   "kind": "eye",
+   "center": [
+    302.5,
+    313.0
+   ]
+  },
+  "eyeHappyL": {
+   "x": 230,
+   "y": 241,
+   "w": 146,
+   "h": 145,
+   "kind": "eye",
+   "center": [
+    302.5,
+    313.0
+   ]
+  },
+  "eyeOpenR": {
+   "x": 475,
+   "y": 240,
+   "w": 147,
+   "h": 146,
+   "kind": "eye",
+   "center": [
+    548.0,
+    312.5
+   ]
+  },
+  "eyeHalfR": {
+   "x": 475,
+   "y": 240,
+   "w": 147,
+   "h": 146,
+   "kind": "eye",
+   "center": [
+    548.0,
+    312.5
+   ]
+  },
+  "eyeClosedR": {
+   "x": 475,
+   "y": 240,
+   "w": 147,
+   "h": 146,
+   "kind": "eye",
+   "center": [
+    548.0,
+    312.5
+   ]
+  },
+  "eyeHappyR": {
+   "x": 475,
+   "y": 240,
+   "w": 147,
+   "h": 146,
+   "kind": "eye",
+   "center": [
+    548.0,
+    312.5
+   ]
+  },
+  "base": {
+   "x": 0,
+   "y": 0,
+   "w": 731,
+   "h": 695,
+   "kind": "base"
+  }
+ },
+ "eyes": {
+  "L": {
+   "c": [
+    302,
+    313
+   ],
+   "size": [
+    122,
+    121
+   ]
+  },
+  "R": {
+   "c": [
+    548,
+    312
+   ],
+   "size": [
+    123,
+    122
+   ]
+  }
+ }
+}

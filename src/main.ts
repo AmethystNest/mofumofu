@@ -2,8 +2,7 @@ import "./style.css";
 import * as C from "./core";
 import { stories } from "./content/chapter";
 import { loadSave, persist, type Save } from "./platform/save";
-import { createDogMotion, type DogMotion, type Motion } from "./render/dog-motion";
-import { createDogRig } from "./render/dog-rig";
+import { createPetFallback, createPetRig, PET_LAYOUT, type Motion, type PetMotion } from "./render/pet-rig";
 import { createEffects, type Effects } from "./render/effects";
 import { isStroking, type TouchPoint } from "./render/gesture";
 const esc = (s: string) =>
@@ -24,11 +23,11 @@ const st = save.game;
 let tab = "home",
   feedback = "今日も、この小さな部屋から。";
 const app = document.querySelector<HTMLDivElement>("#app")!;
-app.innerHTML = `<main><header><div><p class="eyebrow">MOFUMOFU</p><h1>灯りの残る部屋</h1></div><button id="settings" class="icon" aria-label="設定">☷</button></header><div id="view"></div><nav aria-label="メイン"><button data-tab="home">⌂ <span>おへや</span></button><button data-tab="diary">▤ <span>日記</span></button><button data-tab="supplies">◇ <span>もちもの</span></button></nav><p class="save-note" id="save-note">お世話のあとに自動保存</p></main><dialog id="dialog"><div id="dialog-content"></div></dialog>`;
+app.innerHTML = `<main><header><div><p class="eyebrow" id="eyebrow">MOFUMOFU</p><h1>灯りの残る部屋</h1></div><div class="head-right"><span class="ap" id="ap-dots"></span><button id="settings" class="icon" aria-label="設定">☷</button></div></header><div id="view"></div><nav aria-label="メイン"><button data-tab="home">⌂ <span>おへや</span></button><button data-tab="diary">▤ <span>日記</span></button><button data-tab="supplies">◇ <span>もちもの</span></button></nav><p class="save-note" id="save-note">お世話のあとに自動保存</p></main><dialog id="dialog"><div id="dialog-content"></div></dialog>`;
 const view = document.querySelector<HTMLDivElement>("#view")!,
   dialog = document.querySelector<HTMLDialogElement>("#dialog")!,
   content = document.querySelector<HTMLDivElement>("#dialog-content")!;
-let motion: DogMotion | undefined,
+let motion: PetMotion | undefined,
   effects: Effects | undefined,
   sighTimer = 0,
   renderId = 0;
@@ -92,6 +91,9 @@ async function render() {
   window.clearInterval(sighTimer);
   motion = undefined;
   effects = undefined;
+  document.querySelector("main")!.classList.toggle("is-home", tab === "home");
+  document.querySelector("#eyebrow")!.textContent = "MOFUMOFU";
+  document.querySelector("#ap-dots")!.innerHTML = "";
   document.querySelectorAll<HTMLButtonElement>("nav button").forEach((b) => {
     b.classList.toggle("selected", b.dataset.tab === tab);
     b.setAttribute("aria-current", b.dataset.tab === tab ? "page" : "false");
@@ -134,21 +136,25 @@ async function render() {
     night: "おやすみの時間",
   };
   const time = C.timeOfDay(st);
-  view.innerHTML = `<section class="room-card ${time}" aria-label="${times[time]}の部屋"><div class="room-top"><span>DAY ${String(st.day).padStart(2, "0")} <i>／</i> ${times[time]}</span><span class="terminal">● MINATO</span></div><button class="dog-button" id="dog" aria-label="${esc(st.name)}をなでる"><img class="dog-idle" src="${import.meta.env.BASE_URL}assets/dog/idle-v12/frame_00.png" width="320" height="320" alt="星の額模様を持つ、丸い犬の${esc(st.name)}"></button><span class="room-caption">ここが、ふたりの帰る場所。</span></section><section class="care"><div class="pet-heading"><div><p class="eyebrow">YOUR LITTLE COMPANION</p><h2>${esc(st.name)} <span>${st.dog.trust >= 35 ? "そばが、いちばん安心。" : "少しずつ、なかよしに。"}</span></h2></div><span class="ap" aria-label="行動力 ${st.ap}回">${[0, 1, 2].map((i) => `<i class="${i < st.ap ? "filled" : ""}"></i>`).join("")}</span></div><div class="stats">${stats()}</div><p id="feedback" role="status">${esc(feedback)}</p><div class="actions"><button data-action="feed"><b>◒</b>ごはん<small>分けあう時間</small></button><button data-action="pet"><b>♡</b>なでる<small>そっと、ふれる</small></button><button data-action="play" ${st.ap < 1 || !!st.pendingNight ? "disabled" : ""}><b>✧</b>あそぶ<small>行動力 1</small></button><button data-action="explore" ${st.ap < 2 || !!st.pendingNight ? "disabled" : ""}><b>↗</b>さんぽ<small>探索 · 行動力 2</small></button></div><button class="bed" data-action="rest">☾ ${st.pendingNight ? "今夜の物語を読む" : "今日を終える"} <span>夜のひととき →</span></button></section>`;
+  view.innerHTML = `<section class="stage ${time}" aria-label="${times[time]}の部屋"><div class="scene ${time}"><div class="room-bg"></div><div class="pet-box"><span class="pet-shadow"></span><button class="pet-button" id="dog" aria-label="${esc(st.name)}をなでる"><img class="pet-img" src="${import.meta.env.BASE_URL}assets/pet/cat/cat.png" width="731" height="695" alt="灰青色の猫の${esc(st.name)}"></button></div></div><div class="hud"><div class="stats">${stats()}</div></div><section class="care"><p id="feedback" role="status">${esc(feedback)}</p><div class="actions"><button data-action="feed"><b>◒</b>ごはん<small>ふたりで</small></button><button data-action="pet"><b>♡</b>なでる<small>そっと</small></button><button data-action="play" ${st.ap < 1 || !!st.pendingNight ? "disabled" : ""}><b>✧</b>あそぶ<small>行動 1</small></button><button data-action="explore" ${st.ap < 2 || !!st.pendingNight ? "disabled" : ""}><b>↗</b>さんぽ<small>行動 2</small></button><button data-action="rest" class="rest"><b>☾</b>${st.pendingNight ? "夜を読む" : "ねる"}<small>夜のひととき</small></button></div></section></section>`;
+  document.querySelector("#eyebrow")!.textContent = `${st.name}  ／  DAY ${String(st.day).padStart(2, "0")}  ／  ${times[time]}`;
+  const apEl = document.querySelector<HTMLElement>("#ap-dots")!;
+  apEl.setAttribute("aria-label", `行動力 ${st.ap}回`);
+  apEl.innerHTML = [0, 1, 2].map((i) => `<i class="${i < st.ap ? "filled" : ""}"></i>`).join("");
   bindDogTouch(view.querySelector<HTMLButtonElement>("#dog")!);
   view
     .querySelectorAll<HTMLButtonElement>("[data-action]")
     .forEach((b) => (b.onclick = () => actions[b.dataset.action!]!()));
   try {
-    // パーツ式（Phaser）を優先し、使えない端末では従来の一枚絵の描画に切り替える
-    const dogImage = view.querySelector("img")!;
-    const player = await createDogRig(dogImage).catch(() => createDogMotion(dogImage));
+    // パーツ式（Phaser）を優先し、使えない端末では一枚絵（CSS のゆらぎ）に切り替える
+    const petImage = view.querySelector<HTMLImageElement>("img.pet-img")!;
+    const player = await createPetRig(petImage).catch(() => createPetFallback(petImage));
     if (id !== renderId) {
       player.destroy();
       return;
     }
     motion = player;
-    effects = createEffects(view.querySelector<HTMLElement>(".room-card")!, view.querySelector<HTMLElement>("#dog")!);
+    effects = createEffects(view.querySelector<HTMLElement>(".scene")!, view.querySelector<HTMLElement>("#dog")!, PET_LAYOUT);
     const passive: Motion = st.pendingNight ? "sleep" : st.dog.energy < 20 ? "sad" : "idle";
     motion.set(passive);
     effects.sleepy(passive === "sleep");
@@ -156,12 +162,11 @@ async function render() {
       effects.sigh();
       sighTimer = window.setInterval(() => effects?.sigh(), 7000);
     }
-    if (import.meta.env.DEV) (window as unknown as { __dog?: DogMotion }).__dog = motion;
     const queued = afterDog;
     afterDog = [];
     for (const fn of queued) fn();
   } catch {
-    message("犬の動きを読み込めませんでした。再読み込みすると再試行します。");
+    message("ペットの動きを読み込めませんでした。再読み込みすると再試行します。");
   }
 }
 function pet() {
@@ -187,11 +192,11 @@ function bindDogTouch(dog: HTMLButtonElement) {
     const r = dog.getBoundingClientRect();
     return (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
   };
-  /** 指の位置（犬の絵の座標 0..320）。ハートは手のすぐ上に出す */
+  /** 指の位置（ペットの論理座標）。ハートは手のすぐ上に出す */
   const at = (e: PointerEvent): [number, number] => {
     const r = dog.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width) * 320, y = ((e.clientY - r.top) / r.height) * 320;
-    return [Math.max(70, Math.min(250, x)), Math.max(40, Math.min(200, y - 28))];
+    const x = ((e.clientX - r.left) / r.width) * PET_LAYOUT.w, y = ((e.clientY - r.top) / r.height) * PET_LAYOUT.h;
+    return [Math.max(190, Math.min(680, x)), Math.max(120, Math.min(540, y - 90))];
   };
   const end = (e: PointerEvent, cancelled: boolean) => {
     if (!track.length) return;

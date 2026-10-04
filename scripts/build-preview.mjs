@@ -10,7 +10,7 @@ const out = process.argv[2];
 if (!out) throw new Error('出力先を指定してください');
 rmSync(out, { recursive: true, force: true });
 execSync(`npx vite build --base ./ --outDir ${JSON.stringify(out)} --emptyOutDir`, { stdio: 'inherit' });
-for (const f of ['sw.js', 'registerSW.js', 'manifest.webmanifest', 'lab']) rmSync(join(out, f), { recursive: true, force: true });
+for (const f of ['sw.js', 'registerSW.js', 'manifest.webmanifest', 'lab', 'assets/dog']) rmSync(join(out, f), { recursive: true, force: true });
 for (const f of readdirSync(out)) if (/^workbox-.*\.js$/.test(f)) rmSync(join(out, f));
 
 let html = readFileSync(join(out, 'index.html'), 'utf8');

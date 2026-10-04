@@ -7,7 +7,7 @@ async def main():
   browser=await p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
   ctx=await browser.new_context(viewport={'width':390,'height':844},device_scale_factor=2)
   page=await ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-  await page.goto('http://127.0.0.1:4173/mofumofu/');await page.get_by_role('button',name='ふたりの暮らしをはじめる').click();await page.wait_for_function("document.querySelector('img.dog-idle').dataset.motion==='idle'")
+  await page.goto('http://127.0.0.1:4173/mofumofu/');await page.get_by_role('button',name='ふたりの暮らしをはじめる').click();await page.wait_for_function("document.querySelector('img.pet-img').dataset.motion==='idle'")
   await page.screenshot(path=str(ROOT/'docs/verification/home-mobile.png'),full_page=True)
   await page.get_by_role('button',name='なでる',exact=False).first.click();await page.wait_for_function("document.querySelector('img').dataset.motion==='pet'")
   await page.locator('[data-action=feed]').click();await page.get_by_role('button',name='半分ずつ').click();await page.wait_for_function("document.querySelector('img').dataset.motion==='eat'")
