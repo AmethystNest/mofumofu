@@ -30,14 +30,30 @@ type Frame = { frame: string; page: number; durationMs: number };
 type Manifest = { origin: [number, number]; characters: Record<string, { pages: number; actions: Record<string, Frame[]> }> };
 
 const SIZE = 768;
-const ACTION: Record<Exclude<Motion, 'walk'>, string> = { idle: 'idle', pet: 'petted', play: 'play', eat: 'eat', drink: 'drink', sleep: 'sleep', sad: 'idle' };
-const FADE_MS = 90;
+const FADE_MS = 110;       // 動作が切り替わるときの溶かし時間
+
+/** 動作ごとの見せ方：コマとコマの間を溶かす割合と上限(ms)。歩き・睡眠はなめらかに、瞬きなど短いコマはほとんど溶かさない */
+const BLEND: Record<string, { frac: number; max: number }> = {
+  idle: { frac: 0.5, max: 60 },
+  walk: { frac: 0.55, max: 80 },
+  petted: { frac: 0.5, max: 90 },
+  play: { frac: 0.5, max: 90 },
+  eat: { frac: 0.5, max: 90 },
+  drink: { frac: 0.5, max: 90 },
+  sleep: { frac: 1, max: 700 },
+};
+/** 待機：素材の待機には頭を大きく傾けるコマ（idle/04〜06）があり不自然なので使わない。瞬き（00→02→03→02→00）だけを間隔をあけて繰り返す */
+const IDLE_SEQ: [string, number][] = [
+  ['idle/00', 2600], ['idle/02', 70], ['idle/03', 110], ['idle/02', 70],
+  ['idle/00', 1700], ['idle/02', 70], ['idle/03', 110], ['idle/02', 70], ['idle/00', 220], ['idle/02', 70], ['idle/03', 110], ['idle/02', 70],
+  ['idle/00', 1100],
+];
 
 interface Inner {
   api: PetMotion;
   attach(image: HTMLImageElement): void;
   detach(image: HTMLImageElement): void;
-  setChar(char: string): Promise<void>;
+  setChar(char: string, walkScale: number): Promise<void>;
   dispose(): void;
 }
 const slots = new Map<string, Promise<Inner>>();
@@ -60,9 +76,9 @@ export const stillSrc = (char: string) => `${root()}${char}/still.webp`;
 
 /**
  * ペット（種類×成長段階）の動きを作る。slot は画面上の置き場所（'home' など）。
- * 同じ slot では Phaser のゲームを使い回し、成長段階が変わったときは絵を読み込み直す。
+ * walkScale：歩きのコマは待機より小さく描かれているので、頭の大きさが揃うよう拡大する倍率（足元を支点）。
  */
-export async function createPetSprite(slot: string, char: string, image: HTMLImageElement): Promise<PetMotion> {
+export async function createPetSprite(slot: string, char: string, walkScale: number, image: HTMLImageElement): Promise<PetMotion> {
   if (failed) throw new Error('sprite unavailable');
   let p = slots.get(slot);
   if (!p) {
@@ -70,7 +86,7 @@ export async function createPetSprite(slot: string, char: string, image: HTMLIma
     slots.set(slot, p);
   }
   const inner = await p;
-  await inner.setChar(char);
+  await inner.setChar(char, walkScale);
   inner.attach(image);
   return { ...inner.api, get motion() { return inner.api.motion; }, get drawMs() { return inner.api.drawMs; }, destroy: () => inner.detach(image) };
 }
@@ -82,6 +98,8 @@ export async function disposeSlot(slot: string) {
   if (p) (await p.catch(() => undefined))?.dispose();
 }
 
+type Ref = { key: string; frame: string; ms: number };
+
 async function init(): Promise<Inner> {
   const { m: manifest, phaser: Phaser } = await loadShared();
   const holder = document.createElement('div');
@@ -89,9 +107,9 @@ async function init(): Promise<Inner> {
 
   let sc!: PhaserNS.Scene;
   let game!: PhaserNS.Game;
-  let sprite!: PhaserNS.GameObjects.Sprite;
-  let ghost!: PhaserNS.GameObjects.Image;
+  let A!: PhaserNS.GameObjects.Image, B!: PhaserNS.GameObjects.Image, C!: PhaserNS.GameObjects.Image;
   let char = '';
+  let walkScale = 1;
   let passive: Motion = 'idle';
   let active: Motion = 'idle';
   let reactTimer: PhaserNS.Time.TimerEvent | undefined;
@@ -100,6 +118,16 @@ async function init(): Promise<Inner> {
   let current: HTMLImageElement | undefined;
   let sleeping = false;
   const loaded = new Set<string>();
+
+  // 再生の状態
+  let seq: Ref[] = [];
+  let blend = BLEND.idle!;
+  let idx = 0, elapsed = 0, timeScale = 1;
+  let scaleY = 1, baseScale = 1, breathAmp = 0, swayAmp = 0;
+  let from: { ref: Ref; scale: number } | undefined;     // 切り替え前のコマ
+  let mix = 1;                                           // 0→1：切り替えの進み
+  let clock = 0;
+  const frameKey = (c: string, page: number) => `pet:${c}:${page}`;
 
   const ready = new Promise<void>((resolve, reject) => {
     try {
@@ -120,10 +148,20 @@ async function init(): Promise<Inner> {
           key: 'pet-sprite',
           create(this: PhaserNS.Scene) {
             sc = this;
-            ghost = sc.add.image(SIZE * manifest.origin[0], SIZE * manifest.origin[1], '__DEFAULT').setOrigin(...manifest.origin).setAlpha(0).setVisible(false);
-            sprite = sc.add.sprite(SIZE * manifest.origin[0], SIZE * manifest.origin[1], '__DEFAULT').setOrigin(...manifest.origin).setVisible(false);
+            // 隣り合う2コマを「足し合わせ」で溶かす：不透明な部分は濃さが落ちず、輪郭だけがなめらかに移る
+            // 標準の ADD は色を不透明度の二乗で足すため、溶かしの途中で絵が半透明になる。色も不透明度も素直に足す加算を登録する
+            let add: number = Phaser.BlendModes.ADD;
+            const r = game.renderer as PhaserNS.Renderer.WebGL.WebGLRenderer;
+            if (game.renderer.type === Phaser.WEBGL) {
+              const gl = r.gl;
+              add = r.addBlendMode([gl.ONE, gl.ONE, gl.ONE, gl.ONE], gl.FUNC_ADD);
+            }
+            const mk = () => sc.add.image(SIZE * manifest.origin[0], SIZE * manifest.origin[1], '__DEFAULT')
+              .setOrigin(...manifest.origin).setBlendMode(add).setVisible(false);
+            A = mk(); B = mk(); C = mk();
             resolve();
           },
+          update(this: PhaserNS.Scene, _t: number, delta: number) { tick(Math.min(delta, 50)); },
         },
       });
     } catch (e) { reject(e as Error); }
@@ -134,10 +172,7 @@ async function init(): Promise<Inner> {
   canvas.setAttribute('role', 'img');
   canvas.dataset.renderer = game.renderer.type === Phaser.WEBGL ? 'phaser-webgl' : 'phaser-canvas';
 
-  const key = (c: string, page: number) => `pet:${c}:${page}`;
-  const animKey = (c: string, action: string) => `${c}:${action}`;
-
-  /** 絵（アトラス）を読み込み、動作のアニメーションを登録する */
+  /** 絵（アトラス）を読み込む */
   async function ensure(c: string) {
     if (loaded.has(c)) return;
     const spec = manifest.characters[c];
@@ -145,32 +180,67 @@ async function init(): Promise<Inner> {
     await new Promise<void>((resolve, reject) => {
       const onErr = (f: { src: string }) => reject(new Error(`load failed ${f.src}`));
       sc.load.on('loaderror', onErr);
-      for (let i = 0; i < spec.pages; i++) sc.load.atlas(key(c, i), `${root()}${c}/page-${i}.webp`, `${root()}${c}/page-${i}.json`);
+      for (let i = 0; i < spec.pages; i++) sc.load.atlas(frameKey(c, i), `${root()}${c}/page-${i}.webp`, `${root()}${c}/page-${i}.json`);
       sc.load.once('complete', () => { sc.load.off('loaderror', onErr); resolve(); });
       sc.load.start();
     });
-    for (const [action, seq] of Object.entries(spec.actions)) {
-      sc.anims.create({
-        key: animKey(c, action),
-        frameRate: 1000,
-        repeat: -1,
-        frames: seq.map((f) => ({ key: key(c, f.page), frame: f.frame, duration: f.durationMs - 1 })),
-      });
-    }
     loaded.add(c);
   }
 
-  function play(action: string) {
-    const k = animKey(char, action);
-    if (sprite.anims.currentAnim?.key === k && sprite.anims.isPlaying) return;
-    // 前のコマを残して、新しいコマへ短く溶かす
-    if (!reduced && sprite.visible && sprite.frame) {
-      sc.tweens.killTweensOf(ghost);
-      ghost.setTexture(sprite.texture.key, sprite.frame.name).setAlpha(1).setVisible(true);
-      sc.tweens.add({ targets: ghost, alpha: 0, duration: FADE_MS, onComplete: () => ghost.setVisible(false) });
-    }
-    sprite.setVisible(true).play(k);
-    if (reduced) sprite.anims.pause(sprite.anims.currentAnim!.frames[0]);
+  const pageOf = (c: string, frame: string) => {
+    for (const s of Object.values(manifest.characters[c]!.actions)) for (const f of s) if (f.frame === frame) return f.page;
+    throw new Error(`frame ${frame}`);
+  };
+  const sequenceOf = (action: string): Ref[] => {
+    const spec = manifest.characters[char]!;
+    if (action === 'idle') return IDLE_SEQ.map(([frame, ms]) => ({ key: frameKey(char, pageOf(char, frame)), frame, ms }));
+    return spec.actions[action]!.map((f) => ({ key: frameKey(char, f.page), frame: f.frame, ms: f.durationMs }));
+  };
+  const same = (a: Ref, b: Ref) => a.key === b.key && a.frame === b.frame;
+
+  /** いま見えている主なコマ（切り替えの溶かし元） */
+  function snapshot() {
+    if (!seq.length) return undefined;
+    const cur = seq[idx]!, nxt = seq[(idx + 1) % seq.length]!;
+    const w = Math.min(cur.ms * blend.frac, blend.max);
+    const t = elapsed > cur.ms - w ? (elapsed - (cur.ms - w)) / w : 0;
+    return { ref: t >= 0.5 ? nxt : cur, scale: baseScale };
+  }
+
+  function compose() {
+    if (!seq.length) return;
+    const cur = seq[idx]!, nxt = seq[(idx + 1) % seq.length]!;
+    const w = Math.min(cur.ms * blend.frac, blend.max);
+    let t = elapsed > cur.ms - w ? (elapsed - (cur.ms - w)) / w : 0;
+    if (same(cur, nxt)) t = 0;
+    const k = mix;
+    // 呼吸と、ごくわずかな揺れ（足元を支点にした伸び縮みと傾き）
+    const breath = breathAmp ? Math.sin((clock / 3400) * Math.PI * 2) : 0;
+    const sy = baseScale * scaleY * (1 + breath * breathAmp), sx = baseScale * (1 - breath * breathAmp * 0.45);
+    const ang = swayAmp ? Math.sin((clock / 7300) * Math.PI * 2) * swayAmp : 0;
+    A.setTexture(cur.key, cur.frame).setAlpha((1 - t) * k).setScale(sx, sy).setAngle(ang).setVisible(true);
+    if (t > 0) B.setTexture(nxt.key, nxt.frame).setAlpha(t * k).setScale(sx, sy).setAngle(ang).setVisible(true);
+    else B.setVisible(false);
+    if (from && mix < 1) C.setTexture(from.ref.key, from.ref.frame).setAlpha(1 - mix).setScale(from.scale).setAngle(0).setVisible(true);
+    else C.setVisible(false);
+  }
+
+  function tick(delta: number) {
+    if (reduced || !seq.length) return;
+    clock += delta;
+    elapsed += delta * timeScale;
+    for (let guard = 0; guard < 8 && elapsed >= seq[idx]!.ms; guard++) { elapsed -= seq[idx]!.ms; idx = (idx + 1) % seq.length; }
+    if (mix < 1) mix = Math.min(1, mix + delta / FADE_MS);
+    compose();
+  }
+
+  function play(action: string, o: { scale?: number; sy?: number; breath?: number; sway?: number; speed?: number } = {}) {
+    from = reduced ? undefined : snapshot();
+    seq = sequenceOf(action);
+    blend = BLEND[action] ?? BLEND.idle!;
+    idx = 0; elapsed = 0; mix = from ? 0 : 1;
+    baseScale = o.scale ?? 1; scaleY = o.sy ?? 1; breathAmp = o.breath ?? 0; swayAmp = o.sway ?? 0; timeScale = o.speed ?? 1;
+    compose();
   }
 
   function begin(m: Motion) {
@@ -178,12 +248,17 @@ async function init(): Promise<Inner> {
     canvas.dataset.motion = m;
     if (current) current.dataset.motion = m;
     wake();
-    if (m === 'walk') { play(walkDir > 0 ? 'walk_right' : 'walk_left'); sprite.setAlpha(1).setScale(1); return; }
-    play(ACTION[m]);
-    // しょんぼり：待機の絵のまま、少し低く・ゆっくり・やや暗く
-    sprite.anims.timeScale = m === 'sad' ? 0.55 : 1;
-    sprite.setTint(m === 'sad' ? 0xe4e6f2 : 0xffffff);
-    sprite.setScale(1, m === 'sad' ? 0.985 : 1);
+    switch (m) {
+      case 'walk': play(walkDir > 0 ? 'walk_right' : 'walk_left', { scale: walkScale }); break;
+      case 'pet': play('petted'); break;
+      case 'play': play('play'); break;
+      case 'eat': play('eat'); break;
+      case 'drink': play('drink'); break;
+      case 'sleep': play('sleep', { breath: 0.006 }); break;
+      // しょんぼり：待機の絵のまま、少し低く・ゆっくり
+      case 'sad': play('idle', { sy: 0.982, breath: 0.004, speed: 0.6 }); break;
+      default: play('idle', { breath: 0.008, sway: 0.35 });
+    }
   }
 
   function wake() { if (sleeping) { game.loop.wake(); sleeping = false; } }
@@ -227,12 +302,13 @@ async function init(): Promise<Inner> {
 
   return {
     api,
-    async setChar(c) {
+    async setChar(c, ws) {
+      walkScale = ws;
       if (c === char) return;
       await ensure(c);
       char = c;
       reactTimer?.remove();
-      sprite.setVisible(false); ghost.setVisible(false);
+      seq = []; from = undefined;
       begin(passive);
     },
     attach(image) {
@@ -242,7 +318,7 @@ async function init(): Promise<Inner> {
       image.dataset.motion = active;
       canvas.setAttribute('aria-label', image.alt);
       wake();
-      if (reduced) { sleeping = false; sc.time.delayedCall(200, () => { game.loop.sleep(); sleeping = true; }); }
+      if (reduced) { sc.time.delayedCall(200, () => { game.loop.sleep(); sleeping = true; }); }
     },
     detach(image) {
       if (current === image) current = undefined;

@@ -22,13 +22,25 @@ const STAGES: Record<
     hit: [number, number, number, number];
     /** 頭の上（ハート・ため息）の位置（コマの座標） */
     head: [number, number];
-    /** 歩く一歩ぶんの進み（コマの px / 秒）。足が滑らないよう段階ごとに合わせた値 */
-    stride: number;
   }
 > = {
-  baby: { w: 80, hit: [30, 70, 48, 91], head: [384, 410], stride: 90 },
-  young: { w: 72, hit: [21, 78, 37, 91], head: [384, 340], stride: 120 },
-  adult: { w: 68, hit: [19, 80, 23, 91], head: [384, 260], stride: 150 },
+  baby: { w: 80, hit: [30, 70, 48, 91], head: [384, 410] },
+  young: { w: 72, hit: [21, 78, 37, 91], head: [384, 340] },
+  adult: { w: 68, hit: [19, 80, 23, 91], head: [384, 260] },
+};
+
+/**
+ * 歩きのコマは待機のコマより小さく描かれている（額の紋様の高さで比べると猫は約 1.4 倍、犬は約 1.3〜1.5 倍）。
+ * 頭の大きさが揃うよう、歩きのときだけ足元を支点に拡大する倍率。
+ * 速さ（拡大後のコマの px / 秒）は、歩きのコマで接地している足の後ろ向きの移動量から測った値（足が滑りにくい）。
+ */
+const WALK: Record<string, { scale: number; speed: number }> = {
+  cat_baby: { scale: 1.45, speed: 89 },
+  cat_young: { scale: 1.4, speed: 94 },
+  cat_adult: { scale: 1.35, speed: 130 },
+  dog_baby: { scale: 1.45, speed: 89 },
+  dog_young: { scale: 1.3, speed: 115 },
+  dog_adult: { scale: 1.4, speed: 183 },
 };
 
 export interface PetDef {
@@ -68,8 +80,8 @@ export function petDef(species: Species, stage: Stage): PetDef {
     box: { w: s.w, ar: 1, fy: FEET_Y / FRAME },
     img: { left: 0, top: 0, w: 100 },
     hit: s.hit,
-    speed: (s.stride * s.w) / FRAME,
-    create: (slot, image) => createPetSprite(slot, char, image),
+    speed: (WALK[char]!.speed * s.w) / FRAME,
+    create: (slot, image) => createPetSprite(slot, char, WALK[char]!.scale, image),
   };
 }
 
