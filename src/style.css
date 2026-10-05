@@ -818,7 +818,7 @@ label {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: max(9vh, 48px);
+  bottom: max(4.5vh, 30px);
   z-index: 4;
   display: grid;
   justify-items: center;
