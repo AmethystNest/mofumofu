@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'public/assets/pets'
 PAGE = 2048
 PADDING = 4
-SUBSTITUTE = {('cat_adult', 'eat/00'): 'eat/03', ('cat_adult', 'eat/01'): 'eat/03'}
+SUBSTITUTE = {}   # 切れた素材の置き換え（現在は全素材が無事なので空）。必要なら {('キャラ', 'eat/00'): 'eat/03'} の形で指定
 
 
 def pack_page(items):

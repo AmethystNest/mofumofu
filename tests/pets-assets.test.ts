@@ -39,8 +39,8 @@ describe("取り込んだペット素材（6体 × 8動作）", () => {
       expect(new Set(CHARS.map(total)).size, a).toBe(1);
     }
   });
-  it("欠けて読めなかった絵の復元内容を記録している（cat_adult）", () => {
-    expect(manifest.repairs.cat_adult!.length).toBe(8);
+  it("再アップロードされた素材はすべて無事で、復元・置き換えを使っていない", () => {
+    for (const c of CHARS) expect(manifest.repairs[c], c).toEqual([]);
   });
 });
 
