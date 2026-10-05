@@ -30,7 +30,7 @@ type Frame = { frame: string; page: number; durationMs: number };
 type Manifest = { origin: [number, number]; characters: Record<string, { pages: number; actions: Record<string, Frame[]> }> };
 
 const SIZE = 768;
-const FADE_MS = 110;       // 動作が切り替わるときの溶かし時間
+const FADE_MS = 70;        // 動作が切り替わるときの溶かし時間
 
 /** 動作ごとの見せ方：コマとコマの間を溶かす割合と上限(ms)。歩き・睡眠はなめらかに、瞬きなど短いコマはほとんど溶かさない */
 const BLEND: Record<string, { frac: number; max: number }> = {
