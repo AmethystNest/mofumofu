@@ -14,7 +14,7 @@ export interface PetLayout {
 export interface Effects {
   hearts(count?: number, at?: [number, number]): void;
   sparkles(count?: number): void;
-  bowl(ms: number): void;
+  bowl(ms: number, kind?: 'food' | 'water'): void;
   sleepy(on: boolean): void;
   sigh(): void;
   destroy(): void;
@@ -76,11 +76,12 @@ export function createEffects(card: HTMLElement, dog: HTMLElement, L: PetLayout)
           { '--drift': `${(Math.random() - 0.3) * 40}px`, '--scale': `${0.7 + Math.random() * 0.6}` }), i * 110);
       }
     },
-    bowl(ms) {
+    bowl(ms, kind = 'food') {
       // 足元の器：中のごはんが少しずつ減っていく
       // 器は足の前に小さく置き、足先が隠れすぎないよう床側へ下げる
       const el = spawn('fx-bowl', L.floor, ms + 500);
       el.innerHTML = BOWL;
+      if (kind === 'water') el.classList.add('water');
       el.style.setProperty('--eat', `${ms}ms`);
       if (reduced()) el.classList.add('still');
       // 狭い画面では器が部屋の説明文に重なるので、食べている間だけ文を退ける

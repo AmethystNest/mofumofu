@@ -4,9 +4,9 @@
  * 音声記録の声は収録していないので、字幕と雑音だけで表す。
  */
 import { cleanName, type Species } from "../content/species";
-import { PETS, petBoxHtml, placePet, type PetDef } from "../render/pets";
+import { petBoxHtml, petDef, placePet } from "../render/pets";
+import { disposeSlot, type PetMotion } from "../render/pet-sprite";
 import { createEffects } from "../render/effects";
-import type { DogMotion as PetMotion } from "../render/dog-motion";
 import * as ambient from "../platform/ambient";
 
 export interface IntroResult {
@@ -21,7 +21,7 @@ export function runIntro(host: HTMLElement): Promise<IntroResult> {
     const root = document.createElement("div");
     root.className = "intro";
     root.innerHTML = `<div class="intro-stage"><div class="stage morning"><div class="scene morning"><div class="room-bg"></div>${(["dog", "cat"] as Species[])
-      .map((id) => petBoxHtml(PETS[id], `i-${id}`, id === "dog" ? "犬に触れる" : "猫に触れる", PETS[id].look))
+      .map((id) => petBoxHtml(petDef(id, "baby"), `i-${id}`, id === "dog" ? "犬に触れる" : "猫に触れる", petDef(id, "baby").look))
       .join("")}</div></div></div><div class="intro-scan"></div><div class="intro-sys" id="intro-sys" role="status" aria-live="polite"></div><div class="intro-panel" id="intro-panel"></div><button class="intro-skip" id="intro-skip" hidden>スキップ</button><div class="intro-black" id="intro-black"></div>`;
     host.append(root);
     const $ = <T extends HTMLElement>(s: string) => root.querySelector<T>(s)!;
@@ -115,16 +115,16 @@ export function runIntro(host: HTMLElement): Promise<IntroResult> {
     // ---- Scene 04：どちらかに触れて、保護する子を決める ---------------------------------------------------
     async function choose() {
       const motions: Partial<Record<Species, PetMotion>> = {};
-      const defs = PETS;
-      const home: Record<Species, { cx: number; scale: number }> = { dog: { cx: 30, scale: 0.68 }, cat: { cx: 70, scale: 0.68 } };
+      const defs = { dog: petDef("dog", "baby"), cat: petDef("cat", "baby") };
+      const home: Record<Species, { cx: number; scale: number }> = { dog: { cx: 30, scale: 0.95 }, cat: { cx: 70, scale: 0.95 } };
       const box = (id: Species) => $<HTMLElement>(`#i-${id}-box`);
       for (const id of ["dog", "cat"] as Species[]) placePet(box(id), defs[id], { ...home[id], feet: 0.8 });
       // 動かす部品は、現れる前に読み込み始めておく
       await Promise.all((["dog", "cat"] as Species[]).map(async (id) => {
         try {
           const img = root.querySelector<HTMLImageElement>(`#i-${id} img`)!;
-          motions[id] = await defs[id].create(img);
-          createEffects(root.querySelector<HTMLElement>(".scene")!, root.querySelector<HTMLElement>(`#i-${id}`)!, defs[id].layout);
+          motions[id] = await defs[id].create(`intro-${id}`, img);
+          createEffects(root.querySelector<HTMLElement>(".scene")!, root.querySelector<HTMLElement>(`#i-${id}-box`)!, defs[id].layout);
         } catch { /* 一枚絵のまま進む */ }
       }));
       root.classList.add("show-pets");
@@ -140,9 +140,17 @@ export function runIntro(host: HTMLElement): Promise<IntroResult> {
       const later = (fn: () => void, ms: number) => timers.push(window.setTimeout(fn, ms));
       const note = (t: string) => { hint.textContent = t; hint.classList.add("on"); };
 
+      /** 歩いて移る：箱を一定の速さで動かし、そのあいだ歩きのコマを再生する */
+      const stepTo = (id: Species, cx: number, scale: number, feet = 0.8, ms = 1500) => {
+        const b = box(id);
+        const from = parseFloat(b.style.getPropertyValue("--cx")) || cx;
+        b.style.transition = `left ${ms}ms linear, top ${ms}ms linear, width ${ms}ms linear`;
+        placePet(b, defs[id], { cx, scale, feet });
+        if (Math.abs(cx - from) > 0.5) motions[id]?.walk(cx > from ? 1 : -1, ms);
+      };
       const reset = () => {
         timers.splice(0).forEach((t) => window.clearTimeout(t));
-        for (const id of ["dog", "cat"] as Species[]) { placePet(box(id), defs[id], { ...home[id], feet: 0.8 }); motions[id]?.look(0); }
+        for (const id of ["dog", "cat"] as Species[]) stepTo(id, home[id].cx, home[id].scale);
       };
       const confirm = (id: Species) => {
         panel.innerHTML = `<p>この子を保護しますか？</p><div class="intro-choices"><button id="c-yes">保護する</button><button id="c-no" class="quiet">戻る</button></div>`;
@@ -162,18 +170,17 @@ export function runIntro(host: HTMLElement): Promise<IntroResult> {
         reset();
         const m = motions[id];
         if (id === "dog") {
+          // 犬：こちらを見て、近づいてくる（足音・首輪の音）
           note("……こちらを見ている。");
-          m?.look(0);
-          placePet(box("dog"), defs.dog, { cx: 38, scale: 0.76, feet: 0.81 });
+          stepTo("dog", 40, 1.02, 0.81, 1500);
           for (const t of [300, 780, 1250]) later(() => ambient.blip("step"), t);
           later(() => ambient.blip("collar"), 700);
           later(() => m?.react("idle", 2400), 1700);
         } else {
+          // 猫：まだ警戒している。少し身を引く
           note("……まだ警戒している。");
-          m?.look(1);
           ambient.blip("breath");
-          later(() => m?.look(-0.6), 1500);
-          later(() => m?.look(1), 2500);
+          stepTo("cat", 75, 0.95, 0.8, 1300);
         }
         later(() => { note("保護対象を確認しました。"); }, 2900);
         later(() => { picked = id; confirm(id); }, 3900);
@@ -206,6 +213,8 @@ export function runIntro(host: HTMLElement): Promise<IntroResult> {
         say("DAY 01", "cap").classList.add("day");
         await wait(2600);
         for (const m of Object.values(motions)) m.destroy();
+        void disposeSlot("intro-dog");
+        void disposeSlot("intro-cat");
         resolveAll({
           species: id,
           name,

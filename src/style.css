@@ -165,20 +165,25 @@ main.is-home .eyebrow {
   aspect-ratio: var(--ar, 1.026);
   transform: translateX(-50%);
   transition: left 1.6s ease-in-out, top 1.6s ease-in-out, width 1.6s ease-in-out;
+  pointer-events: none;
 }
+.pet-box .pet-button { pointer-events: auto; }
 .pet-shadow {
   position: absolute;
-  left: 20%;
-  width: 60%;
-  top: 92.6%;
-  height: 7%;
+  left: var(--sh-l, 20%);
+  width: var(--sh-w, 60%);
+  top: 87.5%;
+  height: 4.6%;
   border-radius: 50%;
   background: radial-gradient(closest-side, #1b1f2a99, #1b1f2a00);
   filter: blur(2px);
 }
 .pet-button {
   position: absolute;
-  inset: 0;
+  left: var(--hit-l, 0);
+  top: var(--hit-t, 0);
+  width: var(--hit-w, 100%);
+  height: var(--hit-h, 100%);
   padding: 0;
   background: transparent;
   line-height: 0;
@@ -296,8 +301,8 @@ main.is-home .eyebrow {
 }
 /* 足元の器：中のごはんが少しずつ減る */
 .fx-bowl {
-  width: 11cqw;
-  transform: translate(-50%, -60%);
+  width: 14cqw;
+  transform: translate(-50%, -34%);
   animation: fx-bowl-in .35s ease-out both;
 }
 .fx-bowl svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -316,6 +321,9 @@ main.is-home .eyebrow {
   animation: fx-eaten .3s ease-in forwards;
   animation-delay: calc(var(--eat) * (.08 + var(--i) * .075));
 }
+.stage:has(.scene.fx-eating) #feedback { opacity: 0; transition: opacity 0.3s; }
+.fx-bowl.water .kibble { display: none; }
+.fx-bowl.water .b-in { fill: #7fb5d8; }
 .fx-bowl.still, .fx-bowl.still .kibble { animation: none; }
 .fx-bowl.leave { transition: opacity .45s ease; opacity: 0; }
 @keyframes fx-bowl-in {

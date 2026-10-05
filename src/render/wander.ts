@@ -3,13 +3,11 @@
  * 犬・猫どちらも同じ速さ・同じ動かし方（部屋の幅の割合）。横位置は画面の描き直しをまたいで覚えておく。
  * 自動でときどき歩くほか、部屋の床をタップするとそこへ歩く。ごはんのときは中央の器へ歩いてくる。
  */
-import type { DogMotion as PetMotion } from "./dog-motion";
+import type { PetMotion } from "./pet-sprite";
 
 /** 歩く範囲（部屋の幅に対する %）。スマホの縦画面で見える中央付近に収める */
 export const WALK_MIN = 30;
 export const WALK_MAX = 70;
-/** 歩く速さ（部屋の幅に対する %/秒） */
-const SPEED = 13;
 
 let remembered = 50;
 export const rememberedCx = () => remembered;
@@ -26,7 +24,7 @@ export interface Wander {
   destroy(): void;
 }
 
-export function createWander(box: HTMLElement, scene: HTMLElement, motion: () => PetMotion | undefined): Wander {
+export function createWander(box: HTMLElement, scene: HTMLElement, motion: () => PetMotion | undefined, speed: number): Wander {
   let timer = 0, autoTimer = 0, finish: (() => void) | undefined, walking = false;
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -65,13 +63,12 @@ export function createWander(box: HTMLElement, scene: HTMLElement, motion: () =>
         remembered = to;
         return resolve();
       }
-      const ms = Math.max(700, (Math.abs(d) / SPEED) * 1000);
+      const ms = Math.max(700, (Math.abs(d) / speed) * 1000);
       walking = true;
       finish = resolve;
-      box.style.transition = `left ${ms}ms cubic-bezier(0.45, 0, 0.55, 1)`;
+      box.style.transition = `left ${ms}ms linear`;
       box.style.setProperty("--cx", `${to}%`);
-      motion()?.react("walk", ms + 120);
-      motion()?.look(dir);
+      motion()?.walk(dir, ms);
       timer = window.setTimeout(() => {
         walking = false;
         remembered = to;

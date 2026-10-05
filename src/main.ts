@@ -2,8 +2,8 @@ import "./style.css";
 import * as C from "./core";
 import { stories } from "./content/chapter";
 import { clearSave, loadSave, persist, type Save } from "./platform/save";
-import type { Motion, PetMotion } from "./render/pet-rig";
-import { PETS, petBoxHtml, placePet } from "./render/pets";
+import type { Motion, PetMotion } from "./render/pet-sprite";
+import { petBoxHtml, petDef, placePet, stageForDay } from "./render/pets";
 import { sp } from "./content/species";
 import * as ambient from "./platform/ambient";
 import { createWander, rememberedCx, type Wander } from "./render/wander";
@@ -159,7 +159,7 @@ async function render() {
     night: "おやすみの時間",
   };
   const time = C.timeOfDay(st);
-  const def = PETS[save.species];
+  const def = petDef(save.species, stageForDay(st.day));
   view.innerHTML = `<section class="stage ${time}" aria-label="${times[time]}の部屋"><div class="scene ${time}"><div class="room-bg"></div>${petBoxHtml(def, "dog", `${esc(st.name)}をなでる`, `${def.look}の${esc(st.name)}`)}</div><div class="hud"><div class="stats">${stats()}</div></div><section class="care"><p id="feedback" role="status" class="${save.tutorial === "done" ? "" : "sys"}">${esc(feedback)}</p><div class="actions"><button data-action="feed" class="${save.tutorial === "feed" ? "guide" : ""}"><b>◒</b>ごはん<small>ふたりで</small></button><button data-action="pet"><b>♡</b>なでる<small>そっと</small></button><button data-action="play" ${st.ap < 1 || !!st.pendingNight ? "disabled" : ""}><b>✧</b>あそぶ<small>行動 1</small></button><button data-action="explore" ${st.ap < 2 || !!st.pendingNight ? "disabled" : ""}><b>↗</b>さんぽ<small>行動 2</small></button><button data-action="rest" class="rest"><b>☾</b>${st.pendingNight ? "夜を読む" : "ねる"}<small>夜のひととき</small></button></div></section></section>`;
   document.querySelector("#eyebrow")!.textContent = `${st.name}  ／  DAY ${String(st.day).padStart(2, "0")}  ／  ${times[time]}`;
   const apEl = document.querySelector<HTMLElement>("#ap-dots")!;
@@ -173,14 +173,14 @@ async function render() {
   try {
     // パーツ式（Phaser）を優先し、使えない端末では一枚絵（CSS のゆらぎ）に切り替える
     const petImage = view.querySelector<HTMLImageElement>("img.pet-img")!;
-    const player = await def.create(petImage);
+    const player = await def.create("home", petImage);
     if (id !== renderId) {
       player.destroy();
       return;
     }
     motion = player;
     const sceneEl = view.querySelector<HTMLElement>(".scene")!;
-    wander = createWander(view.querySelector<HTMLElement>(".pet-box")!, sceneEl, () => motion);
+    wander = createWander(view.querySelector<HTMLElement>(".pet-box")!, sceneEl, () => motion, def.speed);
     wander.auto(() => tab === "home" && !st.pendingNight && st.dog.energy >= 20 && !dialog.open);
     // 部屋の床をタップすると、そこへ歩いていく
     sceneEl.addEventListener("click", (e) => {
@@ -189,7 +189,7 @@ async function render() {
       if ((e.clientY - r.top) / r.height < 0.6 || st.pendingNight || st.dog.energy < 20) return;
       void wander?.walkTo(((e.clientX - r.left) / r.width) * 100);
     });
-    effects = createEffects(view.querySelector<HTMLElement>(".scene")!, view.querySelector<HTMLElement>("#dog")!, def.layout);
+    effects = createEffects(view.querySelector<HTMLElement>(".scene")!, view.querySelector<HTMLElement>(".pet-box")!, def.layout);
     const passive: Motion = st.pendingNight ? "sleep" : st.dog.energy < 20 ? "sad" : "idle";
     motion.set(passive);
     effects.sleepy(passive === "sleep");
@@ -237,10 +237,10 @@ function bindDogTouch(dog: HTMLButtonElement) {
   };
   /** 指の位置（ペットの論理座標）。ハートは手のすぐ上に出す */
   const at = (e: PointerEvent): [number, number] => {
-    const r = dog.getBoundingClientRect();
-    const L = PETS[save.species].layout;
+    const r = dog.parentElement!.getBoundingClientRect();
+    const L = petDef(save.species, stageForDay(st.day)).layout;
     const x = ((e.clientX - r.left) / r.width) * L.w, y = ((e.clientY - r.top) / r.height) * L.h;
-    return [Math.max(L.w * 0.22, Math.min(L.w * 0.78, x)), Math.max(L.h * 0.14, Math.min(L.h * 0.64, y - L.h * 0.1))];
+    return [Math.max(L.w * 0.25, Math.min(L.w * 0.75, x)), Math.max(L.head[1] - 40, Math.min(L.floor[1] - 160, y - L.h * 0.1))];
   };
   const end = (e: PointerEvent, cancelled: boolean) => {
     if (!track.length) return;
