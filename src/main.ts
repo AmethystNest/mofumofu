@@ -182,7 +182,7 @@ function pet() {
 }
 function refreshVitals() {
   const vals = [st.dog.full, st.dog.energy, st.dog.trust, 100 - st.dog.anx, st.me.hp];
-  document.querySelectorAll<HTMLElement>(".vitals li").forEach((li, i) => {
+  document.querySelectorAll<HTMLElement>(".vitals li:not(.ap)").forEach((li, i) => {
     const m = li.querySelector<HTMLElement>("i")!;
     m.style.setProperty("--v", (vals[i]! / 100).toFixed(2));
     m.setAttribute("aria-valuenow", String(vals[i]));
