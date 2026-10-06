@@ -5,7 +5,7 @@ const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', a
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
 const page = await ctx.newPage();
 const errs = [];
-page.on('pageerror', e => errs.push('pageerror ' + e.message));
+page.on('pageerror', e => errs.push('pageerror ' + e.message + ' | ' + String(e.stack).split('\n').slice(0,4).join(' ; ')));
 page.on('console', m => { if (m.type() === 'error') errs.push('console ' + m.text()); });
 await page.goto('http://127.0.0.1:5199/');
 await page.waitForSelector('#g-start');
