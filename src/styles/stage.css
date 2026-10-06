@@ -205,3 +205,63 @@
 @keyframes fx-eaten {
   to { opacity: 0; transform: scale(.3) translateY(-60%); }
 }
+
+/* ---- 窓：降る灰とシャッター。位置は部屋の絵の窓（941×1672 の x205–740・y285–592）に合わせる ---- */
+.win {
+  position: absolute; left: 21.8%; top: 17%; width: 56.8%; height: 18.4%;
+  border-radius: 3.2cqw; overflow: hidden; pointer-events: none;
+}
+.win .ash, .win .haze, .win .shutter { position: absolute; inset: 0; }
+.win .ash { opacity: var(--ash, 0); }
+.win .a1 {
+  background-image: radial-gradient(circle, rgba(232, 232, 234, 0.95) 0 1.1px, transparent 1.8px), radial-gradient(circle, rgba(214, 215, 220, 0.85) 0 0.9px, transparent 1.5px);
+  background-size: 19px 23px, 27px 31px; background-position: 0 0, 11px 7px;
+  animation: ash-fall 10s linear infinite;
+}
+.win .a2 {
+  background-image: radial-gradient(circle, rgba(240, 240, 242, 0.9) 0 1.8px, transparent 2.6px);
+  background-size: 41px 47px; background-position: 19px 0;
+  animation: ash-fall2 6.5s linear infinite; filter: blur(0.5px);
+}
+@keyframes ash-fall { to { background-position: -19px 230px, -27px 310px; } }
+@keyframes ash-fall2 { to { background-position: -22px 282px; } }
+/* 灰が多いほど、外がかすむ */
+.win .haze { background: linear-gradient(rgba(170, 170, 172, 0.55), rgba(150, 148, 146, 0.35)); opacity: calc(var(--ash, 0) * 0.55); }
+.win .shutter {
+  opacity: 0; transform: translateY(-100%); transition: transform 1.2s ease, opacity 0.3s;
+  background: repeating-linear-gradient(#5c6066 0 9px, #6c7076 9px 10px, #464a50 10px 12px);
+  box-shadow: inset 0 -6px 10px rgba(0, 0, 0, 0.35);
+}
+.win.shut .shutter { opacity: 1; transform: none; }
+.win.shut .ash, .win.shut .haze { display: none; }
+
+/* ---- 照明：消えている／壊れていると暗い。不安定だと、ときどきちらつく ---- */
+.room-shade { position: absolute; inset: 0; pointer-events: none; background: rgb(3, 5, 10); opacity: 0; transition: opacity 0.8s ease; }
+.stage.dark .room-shade { opacity: 0.42; }
+.stage.night.dark .room-shade { opacity: 0.58; }
+.stage.flicker .room-shade { animation: flicker 7.3s steps(1, end) infinite; }
+@keyframes flicker {
+  0%, 61%, 64%, 66%, 100% { opacity: 0.06; }
+  62% { opacity: 0.5; }
+  65% { opacity: 0.32; }
+  88% { opacity: 0.12; }
+}
+
+/* ---- カメラ：映像のノイズ（カメラが弱っていると、この部屋の映像そのものが乱れる） ---- */
+.cam { position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: 0; }
+.stage.cam-noise .cam, .stage.cam-lost .cam {
+  background:
+    repeating-linear-gradient(rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .8 0 0 0 0 .85 0 0 0 0 .9 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: screen; animation: cam-jit 0.45s steps(3) infinite, cam-burst 11s steps(1, end) infinite;
+}
+.stage.cam-noise .cam { opacity: 0.16; }
+.stage.cam-lost .cam { opacity: 0.32; }
+@keyframes cam-jit { 0% { background-position: 0 0, 0 0; } 33% { background-position: 0 1px, -40px 30px; } 66% { background-position: 0 2px, 50px -20px; } }
+@keyframes cam-burst { 0%, 40%, 43%, 100% { filter: none; } 41% { filter: brightness(1.8) contrast(1.4); } }
+.stage.cam-lost .scene { filter: saturate(0.5) contrast(0.92); }
+
+@media (prefers-reduced-motion: reduce) {
+  .win .ash, .stage.flicker .room-shade, .cam { animation: none !important; }
+  .stage.flicker .room-shade { opacity: 0.12; }
+}

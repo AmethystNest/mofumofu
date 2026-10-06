@@ -2,12 +2,11 @@ import "./styles/base.css";
 import "./styles/stage.css";
 import "./styles/ui.css";
 import "./styles/intro.css";
-import * as C from "./core";
-import { FULL_RECORD, nightStory, phaseOfDay, voice } from "./content/story";
+import * as G from "./game";
+import { CORE_LINE, EVENT_LINE, FULL_RECORD, LOOK_NOTHING, endingText, findText, nightStory, phaseOfDay, voice } from "./content/story";
 import { clearSave, loadSave, persist, type Save } from "./platform/save";
 import type { Motion, PetMotion } from "./render/pet-sprite";
 import { petBoxHtml, petDef, placePet, stageForDay } from "./render/pets";
-import { sp } from "./content/species";
 import * as ambient from "./platform/ambient";
 import { createWander, rememberedCx, type Wander } from "./render/wander";
 import { createEffects, type Effects } from "./render/effects";
@@ -15,25 +14,34 @@ import { isStroking, type TouchPoint } from "./render/gesture";
 import { openScene, type Scene } from "./ui/scene";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-let save: Save = loadSave() ?? {
-  version: 2,
-  game: C.newGame("ミケ", Math.floor(Math.random() * 2147483646) + 1),
-  journal: [],
-  updatedAt: 0,
-  species: "cat",
-  tutorial: "feed",
-};
+let save: Save = loadSave() ?? { version: 3, game: G.newGame("ミケ", "cat"), journal: [], updatedAt: 0, tutorial: "feed" };
 const st = save.game;
 let resetting = false;
 /** 導入を終えるまでは保存しない（途中で画面を閉じても、次回は導入から） */
 let started = !!save.updatedAt;
 const SYS_FEED = "空腹を検知しました。";
 const SYS_ATE = "栄養摂取を確認。生存状態：正常。";
+const SYS_ARM = "接触機構に異常を検出しました。";
+
+/** 設備の呼び名（システムの言葉） */
+const EQUIP_NAME: Record<G.EquipId, string> = { light: "照明", climate: "空調", comms: "通信", camera: "カメラ", feeder: "給餌器", water: "給水器", arm: "接触機構" };
+const EQUIP_NOTE: Record<G.EquipId, string> = {
+  light: "暗いと、落ち着かない",
+  climate: "室温を保つ",
+  comms: "外との連絡",
+  camera: "部屋と窓の外を見る",
+  feeder: "ごはんを出す",
+  water: "水を足す",
+  arm: "なでる・あそぶ",
+};
+const STATUS_TEXT = { ok: "正常", unstable: "不安定", broken: "停止" } as const;
+const CLIMATE_TEXT: Record<G.ClimateMode, string> = { off: "切", eco: "控えめ", normal: "通常" };
 
 // ---- ひとこと（システムの記録の末尾）---------------------------------------------------------
 let lines: { t: string; sys: boolean }[] = [];
 const sysTutorial = () => save.tutorial !== "done";
 function say(text: string, sys = sysTutorial()) {
+  if (!text) return;
   lines.push({ t: text, sys });
   lines = lines.slice(-2);
   drawLog();
@@ -67,20 +75,7 @@ function withPet(fn: () => void) {
 function store() {
   persist(save);
 }
-const nameOf = (s: string) => s.replace(/\{name\}/g, st.name);
-/** 核が返す短い案内を、システムの言葉にそろえる */
-function sysMsg(msg: string): string {
-  const m = nameOf(msg);
-  if (m.includes("お腹いっぱい")) return `${st.name}は、おなかいっぱい。`;
-  if (m.includes("残っていない") && !m.includes("動")) return "持ちものが、ない。";
-  if (m.includes("動けない")) return "今日の行動は、もう残っていない。";
-  if (m.includes("疲れて")) return `${st.name}は、休んでいる。今は遊べない。`;
-  if (m.includes("時間が足りない")) return "外へ出るには、行動が足りない。";
-  if (m.includes("行けない")) return "その場所へは、移動できない。";
-  return m;
-}
-const ITEM_NAME: Record<string, string> = { ration: "配給セット", can: "缶詰", dogfood: "ペットフード", ball: "古いボール", blanket: "毛布", map: "管理塔周辺の地図" };
-const ITEM_NOTE: Record<string, string> = { ration: "食料と予備電池のセット", can: "食料としても、電池としても使える", dogfood: "ペット用の食料" };
+const n = () => st.name;
 
 function show(title: string, body: string, buttons: { label: string; action: () => void; kind?: string }[] = []) {
   content.innerHTML = `<div class="sheet"><div class="sh-head"><h2 class="sh-title">${esc(title)}</h2><button class="sh-close" aria-label="閉じる">閉じる</button></div>${body}<div class="choices"></div></div>`;
@@ -100,12 +95,46 @@ function update() {
   store();
   void render();
 }
+/** 行動できない理由を、システムの短い言葉に */
+function reasonText(reason: string): string {
+  return ({
+    ap: "今日の行動は、もう残っていない。",
+    tired: `${n()}は、休んでいる。今は、あそべない。`,
+    arm: "接触機構が停止中。",
+    camera: "カメラが停止中。外の映像を取得できない。",
+    food: "食料が、ない。部屋を点検すると、見つかることがある。",
+    water: "水が、ない。",
+    full: `${n()}は、もう十分。`,
+    feeder: "給餌器も接触機構も、停止中。ごはんを出せない。",
+    waterer: "給水器が停止中。",
+    parts: "部品が、足りない。",
+    fine: "修理の必要は、ない。",
+    outside: "通信の異常は、家の外にある。ここからは直せない。",
+  } as Record<string, string>)[reason] ?? "実行できない。";
+}
 
 // ---- ホーム -------------------------------------------------------------------------------
 const TIMES = { morning: "朝", noon: "昼", evening: "夕", night: "夜" } as const;
-const vital = (label: string, n: number, extra = "") =>
-  `<li class="${n < 25 ? "low " : ""}${extra}"><span>${label}</span><i role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${n}" style="--v:${(n / 100).toFixed(2)}"></i></li>`;
-const pips = (n: number) => (n ? `<span class="s">${"<i></i>".repeat(n)}</span>` : `<span class="s"></span>`);
+const vital = (label: string, v: number, extra = "") =>
+  `<li class="${v < 25 ? "low " : ""}${extra}"><span>${label}</span><i role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}" style="--v:${(v / 100).toFixed(2)}"></i></li>`;
+const pips = (k: number) => (k ? `<span class="s">${"<i></i>".repeat(k)}</span>` : `<span class="s"></span>`);
+const vitalValues = () => [st.pet.full, st.pet.hydration, st.pet.energy, 100 - st.pet.stress, st.power];
+
+/** 部屋の状態に合わせた見た目（暗さ・照明のちらつき・カメラのノイズ） */
+function roomClasses(): string {
+  const c: string[] = [];
+  const lightOn = st.lights && st.equip.light > 0;
+  if (!lightOn) c.push("dark");
+  else if (st.equip.light < 40) c.push("flicker");
+  if (st.equip.camera <= 0) c.push("cam-lost");
+  else if (st.equip.camera < 40) c.push("cam-noise");
+  return c.join(" ");
+}
+/** 窓：降る灰（3日目から、積もった量で濃くなる）とシャッター */
+function windowHtml(): string {
+  const ash = st.day >= 3 ? Math.min(1, 0.5 + st.ash / 50) : 0;
+  return `<div class="win${st.flags.shutter ? " shut" : ""}" style="--ash:${ash.toFixed(2)}" aria-hidden="true"><i class="ash a1"></i><i class="ash a2"></i><i class="haze"></i><i class="shutter"></i></div>`;
+}
 
 async function render() {
   const id = ++renderId;
@@ -116,21 +145,22 @@ async function render() {
   window.clearInterval(sighTimer);
   motion = undefined;
   effects = undefined;
-  const time = C.timeOfDay(st);
-  const def = petDef(save.species, stageForDay(st.day));
-  const night = !!st.pendingNight;
-  view.innerHTML = `<section class="stage ${time}" aria-label="${TIMES[time]}の部屋"><div class="scene ${time}"><div class="room-bg"></div>${petBoxHtml(def, "dog", `${esc(st.name)}に触れる`, `${def.look}の${esc(st.name)}`)}</div><div class="scrim top"></div><div class="scrim bottom"></div>
-<header class="topbar"><div class="day"><b>DAY ${String(st.day).padStart(2, "0")}</b><span>${TIMES[time]}</span><span class="who">${esc(st.name)}</span></div><div class="menu"><button data-open="journal"><span>記録</span></button><button data-open="supplies"><span>持ちもの</span></button><button data-open="settings"><span>設定</span></button></div></header>
-<section class="vitals" aria-label="${esc(st.name)}の状態"><ul>${vital("おなか", st.dog.full)}${vital("げんき", st.dog.energy)}${vital("信頼", st.dog.trust)}${vital("安心", 100 - st.dog.anx)}${vital("電力", st.me.hp, "self")}<li class="ap" role="img" aria-label="行動 ${st.ap}回"><span>行動</span><em>${Array.from({ length: st.apMax ?? 3 }, (_, i) => `<b class="${i < st.ap ? "on" : ""}"></b>`).join("")}</em></li></ul></section>
+  const time = G.timeOfDay(st);
+  const def = petDef(st.species, stageForDay(st.day));
+  const night = !!st.pending;
+  const arm = st.equip.arm > 0;
+  view.innerHTML = `<section class="stage ${time} ${roomClasses()}" aria-label="${TIMES[time]}の部屋"><div class="scene ${time}"><div class="room-bg"></div>${windowHtml()}<div class="room-shade" aria-hidden="true"></div>${petBoxHtml(def, "dog", `${esc(n())}に触れる`, `${def.look}の${esc(n())}`)}</div><div class="cam" aria-hidden="true"></div><div class="scrim top"></div><div class="scrim bottom"></div>
+<header class="topbar"><div class="day"><b>DAY ${String(st.day).padStart(2, "0")}</b><span>${TIMES[time]}</span><span class="who">${esc(n())}</span></div><div class="menu"><button data-open="journal"><span>記録</span></button><button data-open="settings"><span>設定</span></button></div></header>
+<section class="vitals" aria-label="${esc(n())}の状態"><ul>${vital("おなか", st.pet.full)}${vital("水分", st.pet.hydration)}${vital("げんき", st.pet.energy)}${vital("安心", 100 - st.pet.stress)}${vital("電力", st.power, "self")}<li class="ap" role="img" aria-label="行動 ${st.ap}回"><span>行動</span><em>${Array.from({ length: st.apMax }, (_, i) => `<b class="${i < st.ap ? "on" : ""}"></b>`).join("")}</em></li></ul></section>
 <div class="log" id="log" role="log" aria-live="polite"></div>
-<div class="bar" role="group" aria-label="操作"><button data-action="feed" class="${save.tutorial === "feed" ? "guide" : ""}"><span class="t">ごはん</span>${pips(0)}</button><button data-action="pet"><span class="t">なでる</span>${pips(0)}</button><button data-action="play" ${st.ap < 1 || night ? "disabled" : ""}><span class="t">あそぶ</span>${pips(1)}</button><button data-action="explore" ${st.ap < 2 || night ? "disabled" : ""}><span class="t">外出</span>${pips(2)}</button><button data-action="rest"><span class="t">${night ? "記録" : "休む"}</span>${pips(0)}</button></div></section>`;
+<div class="bar" role="group" aria-label="操作"><button data-action="feed" class="${save.tutorial === "feed" ? "guide" : ""}" ${night ? "disabled" : ""}><span class="t">ごはん</span>${pips(0)}</button><button data-action="pet" class="${save.tutorial === "pet" ? "guide" : ""}"><span class="t">なでる</span>${pips(0)}</button><button data-action="play" ${st.ap < 1 || night || !arm ? "disabled" : ""}><span class="t">あそぶ</span>${pips(1)}</button><button data-action="room" ${night ? "disabled" : ""}><span class="t">部屋</span>${pips(0)}</button><button data-action="rest"><span class="t">${night ? "記録" : "休む"}</span>${pips(0)}</button></div></section>`;
   drawLog();
   // 背の低い画面では、下の記録と操作の帯に足元が隠れないよう、少し奥（上）に立たせる
   const short = view.clientHeight < 700;
   placePet(view.querySelector<HTMLElement>(".pet-box")!, def, { cx: rememberedCx(), feet: short ? 0.715 : 0.769 });
   bindTouch(view.querySelector<HTMLButtonElement>("#dog")!);
   view.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) => (b.onclick = () => actions[b.dataset.action!]!()));
-  view.querySelectorAll<HTMLButtonElement>("[data-open]").forEach((b) => (b.onclick = () => openPanel(b.dataset.open as "journal" | "supplies" | "settings")));
+  view.querySelectorAll<HTMLButtonElement>("[data-open]").forEach((b) => (b.onclick = () => (b.dataset.open === "settings" ? settings() : journal())));
   try {
     const petImage = view.querySelector<HTMLImageElement>("img.pet-img")!;
     const player = await def.create("home", petImage);
@@ -141,23 +171,24 @@ async function render() {
     motion = player;
     const sceneEl = view.querySelector<HTMLElement>(".scene")!;
     wander = createWander(view.querySelector<HTMLElement>(".pet-box")!, sceneEl, () => motion, def.speed);
-    wander.auto(() => !st.pendingNight && st.dog.energy >= 20 && !dialog.open && !busy && !document.querySelector(".panel"));
+    wander.auto(() => !st.pending && st.pet.energy >= 20 && !dialog.open && !busy && !document.querySelector(".panel"));
     // 部屋の床をタップすると、そこへ歩いていく
     sceneEl.addEventListener("click", (e) => {
       if ((e.target as Element).closest(".pet-button") || dialog.open || busy) return;
       const r = sceneEl.getBoundingClientRect();
-      if ((e.clientY - r.top) / r.height < 0.6 || st.pendingNight || st.dog.energy < 20) return;
+      if ((e.clientY - r.top) / r.height < 0.6 || st.pending || st.pet.energy < 20) return;
       void wander?.walkTo(((e.clientX - r.left) / r.width) * 100);
     });
     effects = createEffects(sceneEl, view.querySelector<HTMLElement>(".pet-box")!, def.layout);
-    const passive: Motion = st.pendingNight ? "sleep" : st.dog.energy < 20 ? "sad" : "idle";
+    const low = st.pet.energy < 20 || st.pet.stress > 80;
+    const passive: Motion = st.pending ? "sleep" : low ? "sad" : "idle";
     motion.set(passive);
     effects.sleepy(passive === "sleep");
     if (passive === "sad") {
       effects.sigh();
       sighTimer = window.setInterval(() => effects?.sigh(), 7000);
     }
-    if (import.meta.env.DEV) (window as unknown as { __play?: unknown }).__play = (m: Motion, ms?: number) => motion?.react(m, ms);
+    if (import.meta.env.DEV) Object.assign(window, { __play: (m: Motion, ms?: number) => motion?.react(m, ms), __st: st });
     const queued = afterPet;
     afterPet = [];
     for (const fn of queued) fn();
@@ -165,25 +196,8 @@ async function render() {
     say("映像を取得できません。再読み込みで再試行します。", true);
   }
 }
-
-// ---- 行動 ---------------------------------------------------------------------------------
-function pet() {
-  wander?.stop();
-  const r = C.pet(st);
-  const first = save.tutorial === "pet";
-  if (first) save.tutorial = "done";
-  store();
-  if (first) {
-    // 最初の接触：反応のあとに、システムの一言だけを添える（感情の説明はしない）
-    window.setTimeout(() => say("……", true), 1900);
-    window.setTimeout(() => say("この行動に、生存上の必要性はありません。", true), 3500);
-  } else say(voice("pet", st));
-  react("pet");
-  withPet(() => effects!.hearts(r.fx.length ? 3 : 2));
-  refreshVitals();
-}
 function refreshVitals() {
-  const vals = [st.dog.full, st.dog.energy, st.dog.trust, 100 - st.dog.anx, st.me.hp];
+  const vals = vitalValues();
   document.querySelectorAll<HTMLElement>(".vitals li:not(.ap)").forEach((li, i) => {
     const m = li.querySelector<HTMLElement>("i")!;
     m.style.setProperty("--v", (vals[i]! / 100).toFixed(2));
@@ -192,11 +206,40 @@ function refreshVitals() {
   });
 }
 
+// ---- 行動 ---------------------------------------------------------------------------------
+function pet() {
+  if (busy) return;
+  wander?.stop();
+  const r = G.pet(st);
+  store();
+  if (!r.ok) {
+    // 接触機構が止まっている：最初は何も起きない。もう一度触れると、異常を知らせる
+    if (st.daily.touchFailed >= 2) say(SYS_ARM, true);
+    withPet(() => motion!.look(0));
+    if (st.daily.touchFailed === 2) window.setTimeout(() => say(st.species === "dog" ? `${n()}は、その場で待っている。` : `${n()}が、止まったアームを前足でつついた。`, false), 2600);
+    return;
+  }
+  const first = save.tutorial === "pet";
+  if (first) {
+    save.tutorial = "done";
+    store();
+    // 最初の接触：反応のあとに、システムの一言だけを添える（感情の説明はしない）
+    window.setTimeout(() => say("……", true), 1900);
+    window.setTimeout(() => say("この行動に、生存上の必要性はありません。", true), 3500);
+    if (st.pet.hydration < 60) window.setTimeout(() => say("水分の低下を検知しました。", true), 7500);
+    view.querySelector("[data-action=pet]")?.classList.remove("guide");
+  } else say(voice("pet", st));
+  react("pet");
+  withPet(() => effects!.hearts(r.note === "enough" ? 1 : 3));
+  refreshVitals();
+}
+
 /** ペットへのタッチ：タップ・なでる・長押しで「接触」。キーボードの決定でも */
 function bindTouch(btn: HTMLButtonElement) {
   let track: TouchPoint[] = [];
   let stroking = false,
     lastHeart = 0;
+  const armOk = () => st.equip.arm > 0;
   const point = (e: PointerEvent): TouchPoint => ({ t: e.timeStamp, x: e.clientX, y: e.clientY });
   const dir = (e: PointerEvent) => {
     const r = btn.getBoundingClientRect();
@@ -204,7 +247,7 @@ function bindTouch(btn: HTMLButtonElement) {
   };
   const at = (e: PointerEvent): [number, number] => {
     const r = btn.parentElement!.getBoundingClientRect();
-    const L = petDef(save.species, stageForDay(st.day)).layout;
+    const L = petDef(st.species, stageForDay(st.day)).layout;
     const x = ((e.clientX - r.left) / r.width) * L.w, y = ((e.clientY - r.top) / r.height) * L.h;
     return [Math.max(L.w * 0.25, Math.min(L.w * 0.75, x)), Math.max(L.head[1] - 40, Math.min(L.floor[1] - 160, y - L.h * 0.1))];
   };
@@ -224,7 +267,7 @@ function bindTouch(btn: HTMLButtonElement) {
     btn.setPointerCapture?.(e.pointerId);
   });
   btn.addEventListener("pointermove", (e) => {
-    if (!track.length) return;
+    if (!track.length || !armOk()) return;
     track.push(point(e));
     if (!stroking && isStroking(track)) {
       stroking = true;
@@ -246,88 +289,148 @@ function bindTouch(btn: HTMLButtonElement) {
   });
 }
 
+/** ごはんと水 */
 function feed() {
-  const row = (item: C.ItemId, targets: C.FeedTarget[]) =>
-    `<div class="food-row" data-item="${item}"><h3>${ITEM_NAME[item]}<small>残 ${st.inv[item]}</small></h3><p class="desc">${ITEM_NOTE[item]}</p><div class="row"></div></div>`;
-  show("ごはん", `<p>持ちものの食べものを、誰に使うか選んでください。</p><div id="foods">${row("ration", [])}${row("can", [])}${row("dogfood", [])}</div>`);
-  const targetsOf: Record<string, C.FeedTarget[]> = { ration: ["dog", "half", "me"], can: ["dog", "me"], dogfood: ["dog"] };
-  content.querySelectorAll<HTMLElement>(".food-row").forEach((rowEl) => {
-    const item = rowEl.dataset.item as C.ItemId;
-    for (const target of targetsOf[item]!) {
-      const b = document.createElement("button");
-      b.className = "btn";
-      b.textContent = target === "dog" ? `${st.name}に` : target === "half" ? "半分ずつ" : "予備電池へ";
-      b.disabled = st.inv[item] <= 0;
-      b.onclick = () => {
-        const r = C.feed(st, item, target);
-        if (!r.ok) {
-          say(sysMsg(r.msg));
-          dialog.close();
-          return;
-        }
-        dialog.close();
-        const firstMeal = save.tutorial === "feed" && r.toDog;
-        if (firstMeal) {
-          save.tutorial = "pet";
-          window.setTimeout(() => withPet(() => motion!.look(0)), 3600);
-        }
-        say(firstMeal ? SYS_ATE : voice(target === "half" ? "feedHalf" : target === "me" ? "feedSelf" : "feed", st), firstMeal);
-        update();
-        window.setTimeout(async () => {
-          // 離れた所にいたら、器のある中央へ歩いてきてから食べる
-          if (r.toDog) await new Promise<void>((done) => withPet(() => void (wander?.walkTo(50) ?? Promise.resolve()).then(done)));
-          react(r.toDog ? "eat" : "idle", 2600);
-          if (r.toDog) withPet(() => effects!.bowl(2600));
-        }, 200);
-      };
-      rowEl.querySelector(".row")!.append(b);
-    }
+  const feeder = G.statusOf(st.equip.feeder), waterer = G.statusOf(st.equip.water);
+  const feederNote = feeder === "broken" ? (st.equip.arm > 0 ? "給餌器は停止中。接触機構で手渡しする。" : "給餌器も接触機構も停止中。") : feeder === "unstable" ? "給餌器が詰まりかけている。一度に出る量が少ない。" : "給餌器から出す。";
+  const row = (kind: "food" | "water", title: string, stock: number, desc: string, label: string, disabled: boolean) =>
+    `<div class="food-row"><h3>${title}<small>残り ${stock}</small></h3><p class="desc">${esc(desc)}</p><div class="row"><button class="btn" data-k="${kind}" ${disabled ? "disabled" : ""}>${label}</button></div></div>`;
+  show(
+    "ごはん",
+    `<div id="foods">${row("food", "ごはん", st.food, feederNote, "ごはんを出す", st.food <= 0)}${row("water", "水", st.water, waterer === "broken" ? "給水器が停止中。" : "給水器から足す。", "水を足す", st.water <= 0 || waterer === "broken")}</div>`,
+  );
+  content.querySelectorAll<HTMLButtonElement>("[data-k]").forEach((b) => {
+    b.onclick = () => {
+      const kind = b.dataset.k as "food" | "water";
+      dialog.close();
+      const r = kind === "food" ? G.feed(st) : G.giveWater(st);
+      if (!r.ok) {
+        say(reasonText(r.reason), false);
+        return;
+      }
+      const firstMeal = kind === "food" && save.tutorial === "feed";
+      if (firstMeal) {
+        save.tutorial = "pet";
+        window.setTimeout(() => withPet(() => motion!.look(0)), 3600);
+      }
+      const note = r.note === "manual" ? "給餌器が止まっている。接触機構で、手渡しした。" : r.note === "unstable" ? "給餌器が詰まりかけている。少しだけ出た。" : "";
+      say(firstMeal ? SYS_ATE : note || voice(kind === "food" ? "feed" : "water", st), firstMeal);
+      update();
+      window.setTimeout(async () => {
+        // 離れた所にいたら、器のある中央へ歩いてきてから食べる
+        await new Promise<void>((done) => withPet(() => void (wander?.walkTo(50) ?? Promise.resolve()).then(done)));
+        react(kind === "food" ? "eat" : "drink", 2600);
+        withPet(() => effects!.bowl(2600, kind));
+      }, 200);
+    };
   });
 }
 
-function explore() {
-  show(
-    "外出",
-    `<p>外へ出て、使えるものを探します。行動を 2 回使い、電力も減ります。</p><label class="check"><input id="with-pet" type="checkbox" checked> ${esc(st.name)}と一緒に（げんき 25 以上・おなか 10 以上）</label><div class="loc-list" id="locs"></div>`,
-  );
-  const list = content.querySelector("#locs")!;
-  for (const loc of C.LOC_IDS.filter((k) => C.locUnlocked(st, k))) {
-    const b = document.createElement("button");
-    b.className = "btn";
-    b.innerHTML = `${esc(C.LOCS[loc].name)}<small>${esc(C.LOCS[loc].desc)}</small>`;
-    b.onclick = () => {
-      const together = content.querySelector<HTMLInputElement>("#with-pet")!.checked;
-      if (together && !C.canDogCome(st)) {
-        say(`${st.name}は、休んでいる。同行は不可。`);
-        dialog.close();
-        return;
-      }
-      const r = C.explore(st, loc, together);
-      if (!r.ok) {
-        say(sysMsg(r.msg));
-        dialog.close();
-        return;
-      }
-      const loot = Object.entries(r.found)
-        .filter(([k, n]) => k !== "none" && n)
-        .map(([k, n]) => `${ITEM_NAME[k] ?? k} ×${n}`)
-        .join("\n");
-      const text = voice("explore", st) + (r.caught ? "巡回灯を避けて、遠回りした。" : "");
-      save.journal.push({ day: st.day, title: "外出", text: [C.LOCS[loc].name, text, loot || "持ち帰り：なし。"].join("\n") });
-      say(voice("explore", st));
-      update();
-      show("帰還", `<p>${esc(C.LOCS[loc].name)}</p><p>${esc(text)}</p><p class="loot">${esc(loot || "持ち帰り：なし。").replace(/\n/g, "<br>")}</p>`, [{ label: "戻る", action: () => dialog.close() }]);
-    };
-    list.append(b);
-  }
+function play() {
+  const r = G.play(st);
+  if (!r.ok) return say(reasonText(r.reason), false);
+  say(voice("play", st));
+  update();
+  window.setTimeout(() => {
+    react("play", 3000);
+    withPet(() => effects!.sparkles(5));
+  }, 200);
 }
 
+/** 窓の外を見る（カメラ） */
+function look() {
+  const r = G.look(st);
+  if (!r.ok) return say(reasonText(r.reason), false);
+  const text = r.find ? findText(r.find, st) : LOOK_NOTHING[Math.floor(Math.random() * LOOK_NOTHING.length)]!;
+  if (r.find) save.journal.push({ day: st.day, title: "窓の外", text });
+  say(text, false);
+  update();
+}
+
+/** 部屋を点検する：部品・食料・手がかり */
+function search() {
+  const r = G.search(st);
+  if (!r.ok) return say(reasonText(r.reason), false);
+  const f = r.found;
+  const got = [f.parts ? `部品 ×${f.parts}` : "", f.food ? `食料 ×${f.food}` : ""].filter(Boolean);
+  const memo = f.memo ? findText(f.memo, st) : "";
+  if (memo) save.journal.push({ day: st.day, title: "部屋", text: memo });
+  update();
+  show("点検", `<p>棚と、床下の収納を確かめた。</p>${memo ? `<p>${esc(memo)}</p>` : ""}<p class="loot">${esc(got.length ? got.join("\n") : "使えるものは、なかった。").replace(/\n/g, "<br>")}</p>`, [{ label: "戻る", action: () => dialog.close() }]);
+}
+
+function doRepair(id: G.EquipId) {
+  const before = st.equip[id];
+  const r = G.repair(st, id);
+  if (!r.ok) return say(reasonText(r.reason), false);
+  say(id === "arm" && before <= 0 ? "接触機構、復旧。" : `${EQUIP_NAME[id]}を修理した。`, true);
+  update();
+}
+
+// ---- 部屋（窓・点検・電力・設備・備蓄）：全面の暗い面 ---------------------------------------------
+type Panel = HTMLElement & { close: () => void };
+function openPanelShell(label: string, body: string): Panel {
+  document.querySelector(".panel")?.remove();
+  const p = document.createElement("section") as unknown as Panel;
+  p.className = "panel";
+  p.setAttribute("role", "dialog");
+  p.setAttribute("aria-label", label);
+  const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") p.close(); };
+  p.close = () => { p.remove(); document.removeEventListener("keydown", onKey); };
+  document.addEventListener("keydown", onKey);
+  p.innerHTML = `<div class="panel-in"><div class="panel-head"><h2>${esc(label)}</h2><button aria-label="閉じる">閉じる</button></div>${body}</div>`;
+  p.querySelector("button")!.addEventListener("click", () => p.close());
+  main.append(p);
+  p.querySelector<HTMLButtonElement>("button")!.focus({ preventScroll: true });
+  return p;
+}
+function room(scrollTop = 0) {
+  const gen = G.generation(st), use = G.upkeep(st);
+  const noAp = st.ap < 1;
+  const eq = (id: G.EquipId) => {
+    const v = Math.max(0, st.equip[id]), s = G.statusOf(v);
+    const outside = id === "comms" && st.day >= 8;
+    const cost = G.REPAIR_COST[id];
+    const btn = outside
+      ? `<span class="eq-na">家の外の異常</span>`
+      : s !== "ok"
+        ? `<button class="eq-fix" data-fix="${id}" ${noAp || st.parts < cost ? "disabled" : ""}>修理<small>部品 ${cost}</small></button>`
+        : `<span class="eq-na"></span>`;
+    return `<div class="eq ${s}"><div class="eq-t"><b>${EQUIP_NAME[id]}</b><span>${STATUS_TEXT[s]}</span><small>${EQUIP_NOTE[id]}</small></div>${btn}<i role="meter" aria-label="${EQUIP_NAME[id]}の状態" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}" style="--v:${(v / 100).toFixed(2)}"></i></div>`;
+  };
+  const seg = (cur: G.ClimateMode) =>
+    (["off", "eco", "normal"] as G.ClimateMode[]).map((m) => `<button data-climate="${m}" aria-pressed="${cur === m}" ${st.equip.climate <= 0 ? "disabled" : ""}>${CLIMATE_TEXT[m]}</button>`).join("");
+  const body = `
+<div class="acts">
+  <button class="btn" data-do="look" ${noAp || st.equip.camera <= 0 ? "disabled" : ""}>窓の外を見る<small>${st.equip.camera <= 0 ? "カメラが停止中" : "行動 1・カメラで外の様子を確かめる"}</small></button>
+  <button class="btn" data-do="search" ${noAp ? "disabled" : ""}>部屋を点検する<small>行動 1・部品や食料が見つかることがある</small></button>
+</div>
+<p class="sub-h">電力</p>
+<div class="rows"><div class="r"><span>蓄電</span><b>${st.power}%</b></div><div class="r"><span>発電</span><b>一日 +${gen}</b></div><div class="r"><span>消費</span><b>一日 −${use}</b></div></div>
+<div class="ctl"><span>照明</span><div class="seg"><button data-lights="1" aria-pressed="${st.lights}" ${st.equip.light <= 0 ? "disabled" : ""}>点ける</button><button data-lights="0" aria-pressed="${!st.lights}">消す</button></div></div>
+<div class="ctl"><span>空調</span><div class="seg">${seg(st.climate)}</div></div>
+<p class="note">室温 ${st.temp.toFixed(1)}℃。積もった灰で、発電は下がる。</p>
+<p class="sub-h">設備</p>
+<div class="eqs">${G.EQUIP.map(eq).join("")}</div>
+<p class="sub-h">備蓄</p>
+<div class="rows"><div class="r"><span>食料</span><b>×${st.food}</b></div><div class="r"><span>水</span><b>×${st.water}</b></div><div class="r"><span>部品</span><b>×${st.parts}</b></div></div>
+<p class="note">行動の残り：${st.ap} 回。修理・点検・窓の外を見るは、それぞれ行動を 1 回使う。</p>`;
+  const p = openPanelShell("部屋", body);
+  p.scrollTop = scrollTop;
+  const again = () => { const y = p.scrollTop; p.close(); room(y); };
+  p.querySelectorAll<HTMLButtonElement>("[data-do]").forEach((b) => (b.onclick = () => { p.close(); (b.dataset.do === "look" ? look : search)(); }));
+  p.querySelectorAll<HTMLButtonElement>("[data-fix]").forEach((b) => (b.onclick = () => { doRepair(b.dataset.fix as G.EquipId); again(); }));
+  p.querySelectorAll<HTMLButtonElement>("[data-lights]").forEach((b) => (b.onclick = () => { G.setLights(st, b.dataset.lights === "1"); update(); again(); }));
+  p.querySelectorAll<HTMLButtonElement>("[data-climate]").forEach((b) => (b.onclick = () => { G.setClimate(st, b.dataset.climate as G.ClimateMode); update(); again(); }));
+}
+
+// ---- 夜 -----------------------------------------------------------------------------------
 const dayLines = (): string[] => {
   const d = st.daily, ph = phaseOfDay(st.day);
-  if (ph === 0) return ["今日の記録", `　ごはん　${d.dogAte ? "あり" : "なし"}`, `　なでる　${d.pets}回`, `　あそぶ　${d.played ? "あり" : "なし"}`];
-  if (ph === 1) return [`ごはん ${d.dogAte ? "○" : "－"}　なでる ${d.pets}回　あそぶ ${d.played ? "○" : "－"}`];
-  if (ph === 2) return [`${st.name}：${d.pets >= 2 ? "よく触れた日" : "静かな日"}。`];
-  return [];
+  if (ph === 0) return ["今日の記録", `　ごはん　${d.fed}回`, `　水　　　${d.watered ? "あり" : "なし"}`, `　なでる　${d.pets}回`, `　室温　　${st.temp.toFixed(1)}℃`];
+  if (ph === 1) return [`ごはん ${d.fed}回　水 ${d.watered ? "○" : "－"}　なでる ${d.pets}回`, `室温 ${st.temp.toFixed(1)}℃　蓄電 ${st.power}%`];
+  if (ph === 2) return [`${n()}：${d.pets >= 2 || d.played ? "よく触れた日" : "静かな日"}。`, `蓄電 ${st.power}%`];
+  return [`蓄電 ${st.power}%`];
 };
 
 async function playFullRecord(sc: Scene) {
@@ -335,19 +438,34 @@ async function playFullRecord(sc: Scene) {
   await sc.clear();
   ambient.blip("glitch");
   await sc.wait(700);
-  const holds = [2600, 3800, 4600, 5200];
+  const holds = [2600, 3800, 5600];
   for (let i = 0; i < FULL_RECORD.length; i++) {
     await sc.say(FULL_RECORD[i]!, "voice", holds[i]);
     ambient.blip(i === 2 ? "breath" : "glitch");
-    if (i === 1) await sc.wait(1600);
+    if (i === 1) await sc.wait(1800);
     await sc.clear();
-    await sc.wait(i === 2 ? 1200 : 300);
+    await sc.wait(i === 2 ? 1600 : 300);
   }
-  await sc.say("記録の復元を、完了しました。", "log", 2200);
-  await sc.say("……", "log", 1600);
-  await sc.say("「保護対象」。この表記は、現在の状態に適合しません。", "log", 3200);
-  await sc.say(`${st.name}。`, "log", 2800);
+  await sc.say("記録の復元を、完了しました。", "log", 2400);
   await sc.clear();
+}
+
+/** 30日目：記録のあとに、30日の過ごし方で変わる結末 */
+async function playEnding(sc: Scene) {
+  const t = endingText(G.decideEnding(st), st);
+  for (const l of t.lines) {
+    if (l === CORE_LINE) {
+      await sc.clear();
+      await sc.say(l.replace("、", "、\n"), "cap", 5200);
+      await sc.clear();
+    } else await sc.say(l, "log", 2400);
+  }
+  await sc.wait(800);
+  await sc.clear();
+  await sc.say(t.title, "cap", 3600);
+  await sc.clear();
+  save.journal.push({ day: st.day, title: t.title, text: t.lines.join("\n") });
+  store();
 }
 
 /** 休止：暗転して、夜の記録を読み、翌日へ */
@@ -355,13 +473,15 @@ async function night() {
   if (busy) return;
   busy = true;
   wander?.stop();
-  const pending = C.rest(st);
+  // 休止：明かりを落とし、その子は眠る
+  withPet(() => { motion!.set("sleep"); effects!.sleepy(true); });
+  G.rest(st);
   store();
-  const story = nightStory(pending.id, st);
+  const story = nightStory(st);
   const sc = await openScene(document.body, { veil: 0.94 });
   ambient.mood("dawn");
   try {
-    if (!pending.resolved) {
+    if (!st.pending!.resolved) {
       await sc.say("休止処理を開始します。", "log", 1500);
       for (const l of dayLines()) await sc.say(l, "log", 900);
       await sc.wait(600);
@@ -377,17 +497,22 @@ async function night() {
         await sc.wait(500);
         idx = await sc.choose(story.choices.map((label, i) => ({ label, sub: story.subs?.[i] })));
       }
-      C.resolveNight(st, idx);
+      G.resolveNight(st, idx);
       const after = story.after[idx % story.after.length]!;
       save.journal.push({ day: st.day, title: story.title, text: [...story.lines, after].join("\n") });
       store();
       await sc.say(after, "log", 2400);
       await sc.wait(500);
       await sc.clear();
-      if (story.record === 100) await playFullRecord(sc);
+      if (story.record) {
+        await playFullRecord(sc);
+        await playEnding(sc);
+      }
     }
-    C.nextDay(st);
+    const events = G.nextDay(st);
+    lines = [];
     say(voice("morning", st), false);
+    for (const ev of events) say(EVENT_LINE[ev]?.(st) ?? "", true);
     store();
     await sc.say(`DAY ${String(st.day).padStart(2, "0")}`, "day", 2400);
     await render();
@@ -399,72 +524,36 @@ async function night() {
   }
 }
 function rest() {
-  if (st.pendingNight || st.ap < 1) return void night();
+  if (st.pending || st.ap < 1) return void night();
   show("休む", `<p>今日の行動を終えて、休みます。残りの行動：${st.ap} 回。</p>`, [
     { label: "休む", action: () => { dialog.close(); void night(); } },
     { label: "戻る", action: () => dialog.close() },
   ]);
 }
 
-const actions: Record<string, () => void> = {
-  feed,
-  pet,
-  explore,
-  rest,
-  play: () => {
-    const r = C.play(st);
-    if (!r.ok) {
-      say(sysMsg(r.msg));
-      return;
-    }
-    say(voice("play", st));
-    update();
-    setTimeout(() => {
-      react("play", 3000);
-      withPet(() => effects!.sparkles(5));
-    }, 200);
-  },
-};
+const actions: Record<string, () => void> = { feed, pet, play, room: () => room(), rest };
 
-// ---- 記録・備蓄・設定 ------------------------------------------------------------------------
-function openPanel(kind: "journal" | "supplies" | "settings") {
-  if (kind === "settings") return settings();
-  document.querySelector(".panel")?.remove();
-  const p = document.createElement("section");
-  p.className = "panel";
-  p.setAttribute("role", "dialog");
-  p.setAttribute("aria-label", kind === "journal" ? "記録" : "持ちもの");
-  const close = () => { p.remove(); document.removeEventListener("keydown", onKey); };
-  const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-  document.addEventListener("keydown", onKey);
-  let body = "";
-  if (kind === "journal") {
-    body = save.journal.length
-      ? save.journal
-          .slice()
-          .reverse()
-          .map((j) => {
-            const ls = j.text.split("\n");
-            return `<article class="entry"><p class="when">DAY ${String(j.day).padStart(2, "0")}</p><h3>${esc(j.title)}</h3>${ls.map((l, i) => `<p class="${i === ls.length - 1 && ls.length > 1 ? "res" : ""}">${esc(l)}</p>`).join("")}</article>`;
-          })
-          .join("")
-      : `<p class="empty">記録は、まだありません。休むと、その日の記録が残ります。</p>`;
-  } else {
-    const gear = (["ball", "blanket", "map"] as C.GearId[]).filter((k) => st.gear[k]).map((k) => ITEM_NAME[k]);
-    body = `<div class="rows">${(["ration", "can", "dogfood"] as C.ItemId[]).map((k) => `<div class="r"><span>${ITEM_NAME[k]}</span><b>×${st.inv[k]}</b></div>`).join("")}</div>
-<p class="sub-h">持ち帰ったもの</p><div class="rows">${gear.length ? gear.map((g) => `<div class="r"><span>${g}</span><b>―</b></div>`).join("") : `<div class="r dim"><span>まだ、ありません</span></div>`}</div>
-<p class="sub-h">状態</p><div class="rows"><div class="r"><span>電力</span><b>${st.me.hp}%</b></div><div class="r"><span>配給</span><b>${st.registered ? "二名分" : "一名分"}</b></div></div>`;
-  }
-  p.innerHTML = `<div class="panel-in"><div class="panel-head"><h2>${kind === "journal" ? "記録" : "持ちもの"}</h2><button aria-label="閉じる">閉じる</button></div>${body}</div>`;
-  p.querySelector("button")!.addEventListener("click", close);
-  main.append(p);
-  p.querySelector<HTMLButtonElement>("button")!.focus({ preventScroll: true });
+// ---- 記録・設定 ------------------------------------------------------------------------------
+function journal() {
+  const finds = st.records.map((r) => findText(r, st)).filter(Boolean);
+  const entries = save.journal.length
+    ? save.journal
+        .slice()
+        .reverse()
+        .map((j) => {
+          const ls = j.text.split("\n");
+          return `<article class="entry"><p class="when">DAY ${String(j.day).padStart(2, "0")}</p><h3>${esc(j.title)}</h3>${ls.map((l, i) => `<p class="${i === ls.length - 1 && ls.length > 1 ? "res" : ""}">${esc(l)}</p>`).join("")}</article>`;
+        })
+        .join("")
+    : `<p class="empty">記録は、まだありません。休むと、その日の記録が残ります。</p>`;
+  const found = finds.length ? `<p class="sub-h">見つけたもの　${finds.length}</p><div class="finds">${finds.map((f) => `<p>${esc(f)}</p>`).join("")}</div><p class="sub-h">日々</p>` : "";
+  openPanelShell("記録", found + entries);
 }
 
 function settings() {
   show(
     "設定",
-    `<label class="field">名称<input id="pet-name" maxlength="8" value="${esc(st.name)}" autocomplete="off"></label><p class="note">記録はこの端末のブラウザ内に保存されます。機種変更の前に書き出してください。環境音は端末内で合成しています。端末の「視差効果を減らす」で動きを控えられます。</p><div class="menu-list" id="menu-list"></div>`,
+    `<label class="field">名称<input id="pet-name" maxlength="8" value="${esc(n())}" autocomplete="off"></label><p class="note">記録はこの端末のブラウザ内に保存されます。機種変更の前に書き出してください。環境音は端末内で合成しています。端末の「視差効果を減らす」で動きを控えられます。</p><div class="menu-list" id="menu-list"></div>`,
   );
   const list = content.querySelector("#menu-list")!;
   const add = (label: string, action: () => void, kind = "") => {
@@ -529,7 +618,7 @@ if (save.updatedAt) {
   // はじめて：導入（起動 → 記録 → 復元 → 保護する子を選ぶ → 名称 → DAY 01）
   void import("./ui/intro").then(async ({ runIntro }) => {
     const r = await runIntro(document.body);
-    save.species = r.species;
+    st.species = r.species;
     st.name = r.name;
     save.tutorial = "feed";
     lines = [];
@@ -540,4 +629,3 @@ if (save.updatedAt) {
     await r.reveal();
   });
 }
-void sp;

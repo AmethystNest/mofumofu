@@ -1,57 +1,41 @@
 import { describe, it, expect } from "vitest";
-import { newGame, explore, rest, resolveNight, nextDay } from "../src/core";
+import { newGame, search, rest, resolveNight, nextDay } from "../src/game";
 import { decodeSave } from "../src/platform/save";
-import { nightStory } from "../src/content/story";
 import fs from "node:fs";
-describe("playable chapter and persistence", () => {
-  it("round trips signed RNG state after exploration", () => {
-    const game = newGame("ハル", 1);
-    explore(game, "street", true);
-    expect(game.seed).toBeLessThan(0);
-    expect(
-      decodeSave(JSON.stringify({ version: 2, game, journal: [] }))?.game,
-    ).toEqual(game);
+
+describe("保存", () => {
+  it("乱数の状態ごと往復できる", () => {
+    const game = newGame("ハル", "dog", 1, 0);
+    search(game);
+    rest(game);
+    resolveNight(game, 0);
+    nextDay(game);
+    const back = decodeSave(JSON.stringify({ version: 3, game, journal: [{ day: 1, title: "t", text: "x" }], updatedAt: 3, tutorial: "done" }));
+    expect(back?.game).toEqual(game);
+    expect(back?.journal.length).toBe(1);
   });
-  it("rejects malformed or incomplete saves", () => {
-    for (const patch of [
-      { dog: {} },
-      { pendingNight: { id: "missing" } },
-      { inv: { ration: -2 } },
-      { day: NaN },
-      { seed: "1" },
-    ])
-      expect(decodeSave(JSON.stringify({ ...newGame(), ...patch }))).toBeNull();
+  it("壊れた・欠けた保存は読み込まない", () => {
+    const g = newGame("ハル", "cat", 1, 0);
+    for (const patch of [{ pet: {} }, { equip: { light: 1 } }, { day: NaN }, { seed: "1" }, { species: "bird" }, { daily: null }, { records: [1] }, { pending: { id: 3 } }, { climate: "max" }])
+      expect(decodeSave(JSON.stringify({ version: 3, game: { ...g, ...patch } })), JSON.stringify(patch)).toBeNull();
     expect(decodeSave("broken")).toBeNull();
   });
-  it("supports both seven-night endings with complete authored choices", () => {
-    for (const choice of [0, 1]) {
-      const game = newGame("ハル", 1);
-      for (let day = 1; day <= 7; day++) {
-        const pending = rest(game);
-        const story = nightStory(pending.id, game);
-        expect(story.lines.length).toBeGreaterThan(0);
-        expect(story.after.length).toBeGreaterThanOrEqual(
-          Math.max(1, story.choices.length),
-        );
-        resolveNight(game, choice);
-        nextDay(game);
-      }
-      expect(game.day).toBe(8);
-      expect(game.chapter).toBe(1);
-      expect(game.registered).toBe(choice === 0);
-    }
+  it("以前のルールの保存（version 2）は、名前と種類だけを引き継いで DAY 01 から", () => {
+    const old = { version: 2, species: "dog", tutorial: "done", updatedAt: 5, journal: [{ day: 3, title: "夜間放送", text: "…" }], game: { v: 1, name: "ポチ", day: 12 } };
+    const s = decodeSave(JSON.stringify(old))!;
+    expect(s.game.name).toBe("ポチ");
+    expect(s.game.species).toBe("dog");
+    expect(s.game.day).toBe(1);
+    expect(s.tutorial).toBe("feed");
+    expect(decodeSave(JSON.stringify({ ...old, game: { name: "" } }))).toBeNull();
   });
+});
+
+describe("犬の旧素材", () => {
   it("keeps original head-tilt cadence within the expanded idle clip", () => {
-    const m = JSON.parse(
-      fs.readFileSync("public/assets/dog/motions-v1/motions.json", "utf8"),
-    );
-    expect(
-      m.clips.idle.reduce((n: number, f: { ms: number }) => n + f.ms, 0),
-    ).toBe(6370);
-    for (const frames of Object.values(m.clips) as {
-      src: string;
-      ms: number;
-    }[][])
+    const m = JSON.parse(fs.readFileSync("public/assets/dog/motions-v1/motions.json", "utf8"));
+    expect(m.clips.idle.reduce((n: number, f: { ms: number }) => n + f.ms, 0)).toBe(6370);
+    for (const frames of Object.values(m.clips) as { src: string; ms: number }[][])
       for (const f of frames) {
         expect(fs.existsSync("public/assets/dog/" + f.src)).toBe(true);
         expect(f.ms).toBeGreaterThan(0);

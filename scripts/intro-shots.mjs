@@ -59,6 +59,7 @@ await page.touchscreen.tap(box.x + box.width/2, box.y + box.height/2);
 await page.waitForTimeout(900); await shot('25-petted');
 await page.waitForTimeout(1500); console.log('fb1', await page.innerText('.log .now'));
 await page.waitForTimeout(2000); console.log('fb2', await page.innerText('.log .now')); await shot('26-sys-line');
-console.log('save', await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('mofumofu-save-v2')); return [s.species, s.tutorial, s.game.name]; }));
+await page.waitForTimeout(4500); console.log('fb3', await page.innerText('.log .now')); await shot('27-water-hint');
+console.log('save', await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('mofumofu-save-v3')); return [s.game.species, s.tutorial, s.game.name, s.game.food, s.game.pet.full]; }));
 console.log('errors', errs);
 await b.close();
