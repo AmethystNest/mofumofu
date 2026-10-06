@@ -1,0 +1,36 @@
+/* 基本：暗い背景・薄い文字。システムが静かに話す、という見た目の約束（導入と同じ） */
+:root {
+  --bg: #07090d;
+  --glass: rgba(11, 16, 23, 0.56);
+  --glass-strong: rgba(9, 13, 19, 0.88);
+  --line: rgba(214, 228, 236, 0.16);
+  --line-strong: rgba(214, 228, 236, 0.34);
+  --text: #e8f0f4;
+  --dim: #a6b8c2;
+  --faint: #73868f;
+  --accent: #9bd8ea;
+  --warm: #ffd7a6;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, "Noto Sans Mono CJK JP", "Hiragino Sans", monospace;
+  --sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
+  --serif: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  font-family: var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  font-weight: 300;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); }
+body { overflow: hidden; }
+button, input { font: inherit; }
+button { cursor: pointer; color: inherit; border: 0; background: none; padding: 0; -webkit-tap-highlight-color: transparent; }
+button:disabled { opacity: 0.38; cursor: default; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+main { position: relative; height: 100dvh; max-width: 560px; margin: 0 auto; overflow: hidden; background: #23252c; box-shadow: 0 0 0 1px rgba(214, 228, 236, 0.06); }
+h1, h2, h3, p { margin: 0; font-weight: 300; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { newGame, explore, rest, resolveNight, nextDay } from "../src/core";
 import { decodeSave } from "../src/platform/save";
-import { stories } from "../src/content/chapter";
+import { nightStory } from "../src/content/story";
 import fs from "node:fs";
 describe("playable chapter and persistence", () => {
   it("round trips signed RNG state after exploration", () => {
@@ -28,7 +28,7 @@ describe("playable chapter and persistence", () => {
       const game = newGame("ハル", 1);
       for (let day = 1; day <= 7; day++) {
         const pending = rest(game);
-        const story = stories[pending.id];
+        const story = nightStory(pending.id, game);
         expect(story.lines.length).toBeGreaterThan(0);
         expect(story.after.length).toBeGreaterThanOrEqual(
           Math.max(1, story.choices.length),

@@ -1,0 +1,207 @@
+/* 舞台：部屋の絵（941×1672）を画面いっぱいに（はみ出す側は中央を残して切る） */
+.stage {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+  overflow: hidden;
+  background: #23252c;
+}
+.scene {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: max(100cqw, calc(100cqh * 941 / 1672));
+  aspect-ratio: 941 / 1672;
+  container-type: inline-size;
+}
+.room-bg {
+  position: absolute;
+  inset: 0;
+  background: url("../public/assets/room/room-noon.webp") center / 100% 100% no-repeat #8c8d92;
+}
+.scene.morning .room-bg {
+  background-image: url("../public/assets/room/room-morning.webp");
+}
+.scene.evening .room-bg {
+  background-image: url("../public/assets/room/room-evening.webp");
+}
+.scene.night .room-bg {
+  background-image: url("../public/assets/room/room-night.webp");
+}
+/* ペット：猫の幅は部屋の幅の約 37.9%、足元は部屋の高さの約 76.9%（指定の配置比率） */
+.pet-box {
+  position: absolute;
+  left: var(--cx, 50%);
+  top: var(--top, 93.4cqw);
+  width: var(--w, 45.16cqw);
+  aspect-ratio: var(--ar, 1.026);
+  transform: translateX(-50%);
+  transition: left 1.6s ease-in-out, top 1.6s ease-in-out, width 1.6s ease-in-out;
+  pointer-events: none;
+}
+.pet-box .pet-button { pointer-events: auto; }
+.pet-shadow {
+  position: absolute;
+  left: var(--sh-l, 20%);
+  width: var(--sh-w, 60%);
+  top: 87.5%;
+  height: 4.6%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #1b1f2a99, #1b1f2a00);
+  filter: blur(2px);
+}
+.pet-button {
+  position: absolute;
+  left: var(--hit-l, 0);
+  top: var(--hit-t, 0);
+  width: var(--hit-w, 100%);
+  height: var(--hit-h, 100%);
+  padding: 0;
+  background: transparent;
+  line-height: 0;
+  /* 横になでる動きはペットへ、縦のスワイプはページのスクロールへ */
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pet-button:focus-visible {
+  outline: 2px solid #ffffffcc;
+  outline-offset: -4px;
+  border-radius: 24px;
+}
+.pet-canvas,
+.dog-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* 一枚絵（Phaser が使えない端末の代替）：論理キャンバスの中の、絵の位置に置く */
+.pet-img {
+  position: absolute;
+  left: var(--img-left, 8.04%);
+  top: var(--img-top, 16.5%);
+  width: var(--img-w, 83.9%);
+  height: auto;
+  transform-origin: 50% 100%;
+  display: block;
+}
+.pet-img[hidden] {
+  display: none;
+}
+.pet-idle { animation: pet-breathe 3.4s ease-in-out infinite; }
+.pet-pet { animation: pet-bounce 0.55s ease-in-out infinite; }
+.pet-play { animation: pet-hop 0.62s ease-in-out infinite; }
+.pet-eat { animation: pet-chomp 0.38s ease-in-out infinite; }
+.pet-sleep { transform: scaleY(0.93) scaleX(1.03); animation: pet-breathe 5s ease-in-out infinite; }
+.pet-sad { transform: scaleY(0.985); }
+.pet-walk { animation: pet-walk 0.38s ease-in-out infinite; }
+.pet-stretch { animation: pet-stretch 2s ease-in-out; }
+.pet-shake { animation: pet-shake 0.12s ease-in-out 8; }
+.pet-sniff { animation: pet-chomp 0.22s ease-in-out infinite; }
+@keyframes pet-walk { 50% { transform: translateY(-3%) scale(0.99, 1.03) rotate(1.4deg); } }
+@keyframes pet-stretch { 50% { transform: scale(0.96, 1.1); } }
+@keyframes pet-shake { 50% { transform: rotate(4deg); } 0%, 100% { transform: rotate(-4deg); } }
+@keyframes pet-breathe { 50% { transform: scale(1.006, 1.014); } }
+@keyframes pet-bounce { 40% { transform: translateY(-2%) scale(0.98, 1.04); } 70% { transform: scale(1.02, 0.97); } }
+@keyframes pet-hop { 35% { transform: translateY(-6%) scale(0.96, 1.07); } 70% { transform: scale(1.05, 0.88); } }
+@keyframes pet-chomp { 50% { transform: scale(1.01, 0.97); } }
+.fx-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  overflow: hidden;
+}
+.fx {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  line-height: 1;
+  will-change: transform, opacity;
+}
+.fx-heart {
+  color: #e8737d;
+  font-size: 24px;
+  text-shadow: 0 0 2px #fff, 0 1px 0 #fff, 0 2px 8px #b4646a66;
+  animation: fx-rise 1.5s cubic-bezier(.2, .7, .3, 1) forwards;
+}
+.fx-spark {
+  color: #e6b25c;
+  font-size: 15px;
+  text-shadow: 0 0 6px #ffe3a8;
+  animation: fx-pop 0.9s ease-out forwards;
+}
+.fx-z {
+  /* 夜の暗い部屋でも読めるよう、淡い色に影を付ける */
+  color: #eef1fb;
+  font: 700 20px/1 Georgia, serif;
+  text-shadow: 0 0 3px #2b3350, 0 1px 6px #1d2338cc;
+  animation: fx-z 2.6s ease-in-out forwards;
+}
+.fx-sigh {
+  color: #8a7a6c;
+  font-size: 15px;
+  letter-spacing: 1px;
+  background: #fffaf2;
+  border-radius: 10px;
+  padding: 3px 7px 6px;
+  box-shadow: 0 2px 6px #6b4e3422;
+  animation: fx-sigh 2.2s ease-in-out forwards;
+}
+@keyframes fx-rise {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(calc(var(--scale, 1) * .5)); }
+  15% { opacity: 1; transform: translate(-50%, -60%) scale(var(--scale, 1)); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--drift, 0px)), -260%) scale(var(--scale, 1)); }
+}
+@keyframes fx-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.2) rotate(0deg); }
+  30% { opacity: 1; transform: translate(-50%, -80%) scale(var(--scale, 1)) rotate(25deg); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--drift, 0px)), -170%) scale(.4) rotate(70deg); }
+}
+@keyframes fx-z {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(calc(var(--scale, 1) * .6)); }
+  20% { opacity: .9; }
+  100% { opacity: 0; transform: translate(-10%, -300%) scale(calc(var(--scale, 1) * 1.15)) rotate(-8deg); }
+}
+@keyframes fx-sigh {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(.8); }
+  20%, 75% { opacity: 1; transform: translate(-50%, -70%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -90%) scale(1); }
+}
+/* 足元の器：中のごはんが少しずつ減る */
+.fx-bowl {
+  width: 14cqw;
+  transform: translate(-50%, -34%);
+  animation: fx-bowl-in .35s ease-out both;
+}
+.fx-bowl svg { display: block; width: 100%; height: auto; overflow: visible; }
+.fx-bowl .b-shadow { fill: #3c2a1c; opacity: .22; }
+.fx-bowl .b-body { fill: #7e9c98; stroke: #4c6461; stroke-width: 1.6; stroke-linejoin: round; }
+.fx-bowl .b-band { fill: #e7dccb; opacity: .85; }
+.fx-bowl .b-rim { fill: #a9c1bd; stroke: #4c6461; stroke-width: 1.6; }
+.fx-bowl .b-in { fill: #57706d; }
+.fx-bowl .b-gloss { fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; opacity: .35; }
+.fx-bowl .kibble {
+  fill: #b77a43;
+  stroke: #6e4322;
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-eaten .3s ease-in forwards;
+  animation-delay: calc(var(--eat) * (.08 + var(--i) * .075));
+}
+.stage:has(.scene.fx-eating) .log { opacity: 0; transition: opacity 0.3s; }
+.fx-bowl.water .kibble { display: none; }
+.fx-bowl.water .b-in { fill: #7fb5d8; }
+.fx-bowl.still, .fx-bowl.still .kibble { animation: none; }
+.fx-bowl.leave { transition: opacity .45s ease; opacity: 0; }
+@keyframes fx-bowl-in {
+  from { opacity: 0; transform: translate(-50%, -40%) scale(.9); }
+}
+@keyframes fx-eaten {
+  to { opacity: 0; transform: scale(.3) translateY(-60%); }
+}

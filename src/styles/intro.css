@@ -1,0 +1,161 @@
+/* ---- 導入（起動 → 記録 → 復元 → 保護 → 名称 → DAY 01）：薄い文字だけ。カード・アイコンは出さない ---- */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #05070a;
+  color: #cfd8dd;
+  overflow: hidden;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, "Noto Sans Mono CJK JP", "Hiragino Sans", monospace;
+  --serif: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif;
+}
+.intro-stage {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  filter: grayscale(1) blur(26px) brightness(0.45) contrast(1.3);
+  transition: opacity 2.4s ease, filter 2.6s ease;
+}
+.intro.s1 .intro-stage { opacity: 0.35; }
+.intro.s2 .intro-stage { opacity: 0.55; filter: grayscale(0.9) blur(13px) brightness(0.55) contrast(1.25); }
+.intro.s3 .intro-stage { opacity: 0.8; filter: grayscale(0.55) blur(5px) brightness(0.75) contrast(1.1); }
+.intro.s4 .intro-stage, .intro.pets .intro-stage { opacity: 1; filter: none; }
+.intro-stage .stage { background: #000; }
+.intro-scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: repeating-linear-gradient(0deg, #0000 0 2px, #0000002e 2px 3px);
+  transition: opacity 1.4s ease;
+}
+.intro.s1 .intro-scan, .intro.s2 .intro-scan, .intro.s3 .intro-scan { opacity: 1; }
+.intro.s4 .intro-scan { opacity: 0.25; }
+.intro.pets .intro-scan { opacity: 0; }
+.intro .pet-box { opacity: 0; transition: opacity 1.4s ease, left 1.6s ease-in-out, top 1.6s ease-in-out, width 1.6s ease-in-out; }
+.intro.show-pets .pet-box { opacity: 1; }
+.intro.chosen .pet-box { opacity: 0 !important; }
+.intro:not(.pets) .pet-button { pointer-events: none; }
+.intro .pet-button { cursor: pointer; }
+.intro-sys { position: absolute; inset: 0; z-index: 4; pointer-events: none; transition: opacity 0.7s ease; }
+.intro-sys.out { opacity: 0; }
+.intro-sys p { position: absolute; margin: 0; opacity: 0; transition: opacity 1.1s ease; }
+.intro-sys p.on { opacity: 1; }
+.intro-sys .l-log {
+  position: static;
+  display: block;
+  font: 400 13px/2.1 var(--mono);
+  letter-spacing: 0.09em;
+  color: #aebbc2cc;
+}
+.intro-sys:has(.l-log) { padding: max(18vh, 90px) 28px 0; }
+.intro-sys .l-cap {
+  left: 0;
+  right: 0;
+  top: 44%;
+  text-align: center;
+  font: 400 clamp(19px, 5.4vw, 25px) / 1.8 var(--serif);
+  letter-spacing: 0.22em;
+  color: #e9eef0;
+  text-shadow: 0 0 18px #000, 0 0 3px #000;
+}
+.intro-sys .l-cap.day { font-size: clamp(26px, 8vw, 38px); letter-spacing: 0.5em; padding-left: 0.5em; font-weight: 300; }
+.intro-sys .l-note {
+  left: 50%;
+  top: max(8vh, 52px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 7px 16px;
+  background: #0b0e12b8;
+  text-align: center;
+  font: 400 13px/1.8 var(--mono);
+  letter-spacing: 0.1em;
+  color: #e3ebefdd;
+  text-shadow: 0 0 8px #000, 0 0 2px #000;
+}
+.intro-sys:has(.l-note) { padding: 0; }
+.intro-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(4.5vh, 30px);
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.9s ease;
+}
+.intro-panel.on { opacity: 1; pointer-events: auto; }
+/* 名称の入力：画面のキーボードに隠れないよう上寄りに置く */
+.intro-panel.mid { top: 34%; bottom: auto; }
+.intro-panel p { margin: 0; font: 400 14px/1.8 var(--mono); letter-spacing: 0.12em; color: #eef3f5; text-shadow: 0 0 8px #000; }
+.intro-choices { display: flex; gap: 12px; }
+.intro .intro-choices button,
+.intro .intro-name button,
+.intro .intro-gate button {
+  min-height: 44px;
+  padding: 0 24px;
+  border: 1px solid #cfd8dd66;
+  border-radius: 2px;
+  background: #0a0d1099;
+  color: #e9eef0;
+  font: 400 14px var(--mono);
+  letter-spacing: 0.14em;
+  backdrop-filter: blur(3px);
+}
+.intro .intro-choices button.quiet { border-color: #cfd8dd33; color: #aebbc2; }
+.intro button:active { background: #ffffff1c; }
+.intro button:disabled { opacity: 0.35; }
+.intro button:focus-visible, .intro input:focus-visible { outline: 1px solid #ffffffcc; outline-offset: 3px; }
+.intro-name { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; width: min(86vw, 380px); }
+.intro-name label { font: 400 13px var(--mono); letter-spacing: 0.14em; color: #aebbc2; }
+.intro-name input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 1px solid #cfd8dd99;
+  background: transparent;
+  color: #fff;
+  font: 400 18px var(--serif);
+  letter-spacing: 0.16em;
+  border-radius: 0;
+}
+.intro-name input::placeholder { color: #cfd8dd44; }
+.intro-skip {
+  position: absolute;
+  right: 14px;
+  top: max(12px, env(safe-area-inset-top));
+  z-index: 5;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: #aebbc299;
+  font: 400 12px var(--mono);
+  letter-spacing: 0.14em;
+}
+.intro-black { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 1.4s ease; z-index: 3; }
+.intro-black.on { opacity: 1; }
+.intro-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: #05070a;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  transition: opacity 0.8s ease;
+}
+.intro-gate.out { opacity: 0; pointer-events: none; }
+.intro-gate .g-main { border-color: #cfd8dd44; color: #aebbc2; animation: gate-breathe 3.2s ease-in-out infinite; }
+.intro-gate .g-sub { border: 0 !important; background: none !important; color: #8793999a !important; font-size: 12px !important; }
+@keyframes gate-breathe { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) {
+  .intro-gate .g-main { animation: none; }
+  .intro-stage, .intro-sys p, .intro .pet-box { transition-duration: 0.01s; }
+}
+
