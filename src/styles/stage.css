@@ -18,16 +18,16 @@
 .room-bg {
   position: absolute;
   inset: 0;
-  background: url("../public/assets/room/room-noon.webp") center / 100% 100% no-repeat #8c8d92;
+  background: url("../../public/assets/room/room-noon.webp") center / 100% 100% no-repeat #8c8d92;
 }
 .scene.morning .room-bg {
-  background-image: url("../public/assets/room/room-morning.webp");
+  background-image: url("../../public/assets/room/room-morning.webp");
 }
 .scene.evening .room-bg {
-  background-image: url("../public/assets/room/room-evening.webp");
+  background-image: url("../../public/assets/room/room-evening.webp");
 }
 .scene.night .room-bg {
-  background-image: url("../public/assets/room/room-night.webp");
+  background-image: url("../../public/assets/room/room-night.webp");
 }
 /* ペット：猫の幅は部屋の幅の約 37.9%、足元は部屋の高さの約 76.9%（指定の配置比率） */
 .pet-box {

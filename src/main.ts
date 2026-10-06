@@ -125,7 +125,9 @@ async function render() {
 <div class="log" id="log" role="log" aria-live="polite"></div>
 <div class="bar" role="group" aria-label="操作"><button data-action="feed" class="${save.tutorial === "feed" ? "guide" : ""}"><span class="t">給餌</span>${pips(0)}</button><button data-action="pet"><span class="t">接触</span>${pips(0)}</button><button data-action="play" ${st.ap < 1 || night ? "disabled" : ""}><span class="t">遊戯</span>${pips(1)}</button><button data-action="explore" ${st.ap < 2 || night ? "disabled" : ""}><span class="t">外出</span>${pips(2)}</button><button data-action="rest"><span class="t">${night ? "記録" : "休止"}</span>${pips(0)}</button></div></section>`;
   drawLog();
-  placePet(view.querySelector<HTMLElement>(".pet-box")!, def, { cx: rememberedCx() });
+  // 背の低い画面では、下の記録と操作の帯に足元が隠れないよう、少し奥（上）に立たせる
+  const short = view.clientHeight < 700;
+  placePet(view.querySelector<HTMLElement>(".pet-box")!, def, { cx: rememberedCx(), feet: short ? 0.715 : 0.769 });
   bindTouch(view.querySelector<HTMLButtonElement>("#dog")!);
   view.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) => (b.onclick = () => actions[b.dataset.action!]!()));
   view.querySelectorAll<HTMLButtonElement>("[data-open]").forEach((b) => (b.onclick = () => openPanel(b.dataset.open as "journal" | "supplies" | "settings")));

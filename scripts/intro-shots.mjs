@@ -1,13 +1,13 @@
 import { chromium } from 'playwright';
 const pick = process.argv[2] || 'cat';
-const OUT = '/home/user/mofumofu/docs/verification/intro/';
+const OUT = '/home/user/mofumofu/docs/verification/intro/' + (process.env.TAG || '');
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=swiftshader','--enable-unsafe-swiftshader','--autoplay-policy=no-user-gesture-required'] });
-const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+const ctx = await b.newContext({ viewport: { width: +(process.env.W || 390), height: +(process.env.H || 844) }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
 const page = await ctx.newPage();
 const errs = [];
 page.on('pageerror', e => errs.push('pageerror ' + e.message + ' | ' + String(e.stack).split('\n').slice(0,4).join(' ; ')));
 page.on('console', m => { if (m.type() === 'error') errs.push('console ' + m.text()); });
-await page.goto('http://127.0.0.1:5199/');
+await page.goto(process.env.URL || 'http://127.0.0.1:5199/');
 await page.waitForSelector('#g-start');
 const shot = (n) => page.screenshot({ path: OUT + `${pick}-${n}.png` });
 await shot('00-gate');
