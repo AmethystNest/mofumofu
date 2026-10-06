@@ -71,15 +71,15 @@ const nameOf = (s: string) => s.replace(/\{name\}/g, st.name);
 /** 核が返す短い案内を、システムの言葉にそろえる */
 function sysMsg(msg: string): string {
   const m = nameOf(msg);
-  if (m.includes("お腹いっぱい")) return `${st.name}は、満腹。給餌は不要。`;
-  if (m.includes("残っていない") && !m.includes("動")) return "備蓄がない。";
-  if (m.includes("動けない")) return "本日の行動回数は、残っていない。";
-  if (m.includes("疲れて")) return `${st.name}は、休んでいる。遊戯は不可。`;
-  if (m.includes("時間が足りない")) return "外出には、行動回数が足りない。";
+  if (m.includes("お腹いっぱい")) return `${st.name}は、おなかいっぱい。`;
+  if (m.includes("残っていない") && !m.includes("動")) return "持ちものが、ない。";
+  if (m.includes("動けない")) return "今日の行動は、もう残っていない。";
+  if (m.includes("疲れて")) return `${st.name}は、休んでいる。今は遊べない。`;
+  if (m.includes("時間が足りない")) return "外へ出るには、行動が足りない。";
   if (m.includes("行けない")) return "その場所へは、移動できない。";
   return m;
 }
-const ITEM_NAME: Record<string, string> = { ration: "非常配給セット", can: "備蓄缶", dogfood: "ペットフード", ball: "古いボール", blanket: "毛布", map: "管理塔周辺の地図" };
+const ITEM_NAME: Record<string, string> = { ration: "配給セット", can: "缶詰", dogfood: "ペットフード", ball: "古いボール", blanket: "毛布", map: "管理塔周辺の地図" };
 const ITEM_NOTE: Record<string, string> = { ration: "食料と予備電池のセット", can: "食料としても、電池としても使える", dogfood: "ペット用の食料" };
 
 function show(title: string, body: string, buttons: { label: string; action: () => void; kind?: string }[] = []) {
@@ -120,10 +120,10 @@ async function render() {
   const def = petDef(save.species, stageForDay(st.day));
   const night = !!st.pendingNight;
   view.innerHTML = `<section class="stage ${time}" aria-label="${TIMES[time]}の部屋"><div class="scene ${time}"><div class="room-bg"></div>${petBoxHtml(def, "dog", `${esc(st.name)}に触れる`, `${def.look}の${esc(st.name)}`)}</div><div class="scrim top"></div><div class="scrim bottom"></div>
-<header class="topbar"><div class="day"><b>DAY ${String(st.day).padStart(2, "0")}</b><span>${TIMES[time]}</span><span class="who">${esc(st.name)}</span></div><div class="menu"><button data-open="journal"><span>記録</span></button><button data-open="supplies"><span>備蓄</span></button><button data-open="settings"><span>設定</span></button></div></header>
-<section class="vitals" aria-label="${esc(st.name)}の状態"><ul>${vital("満腹", st.dog.full)}${vital("活力", st.dog.energy)}${vital("信頼", st.dog.trust)}${vital("安定", 100 - st.dog.anx)}${vital("電力", st.me.hp, "self")}<li class="ap" role="img" aria-label="行動 ${st.ap}回"><span>行動</span><em>${Array.from({ length: st.apMax ?? 3 }, (_, i) => `<b class="${i < st.ap ? "on" : ""}"></b>`).join("")}</em></li></ul></section>
+<header class="topbar"><div class="day"><b>DAY ${String(st.day).padStart(2, "0")}</b><span>${TIMES[time]}</span><span class="who">${esc(st.name)}</span></div><div class="menu"><button data-open="journal"><span>記録</span></button><button data-open="supplies"><span>持ちもの</span></button><button data-open="settings"><span>設定</span></button></div></header>
+<section class="vitals" aria-label="${esc(st.name)}の状態"><ul>${vital("おなか", st.dog.full)}${vital("げんき", st.dog.energy)}${vital("信頼", st.dog.trust)}${vital("安心", 100 - st.dog.anx)}${vital("電力", st.me.hp, "self")}<li class="ap" role="img" aria-label="行動 ${st.ap}回"><span>行動</span><em>${Array.from({ length: st.apMax ?? 3 }, (_, i) => `<b class="${i < st.ap ? "on" : ""}"></b>`).join("")}</em></li></ul></section>
 <div class="log" id="log" role="log" aria-live="polite"></div>
-<div class="bar" role="group" aria-label="操作"><button data-action="feed" class="${save.tutorial === "feed" ? "guide" : ""}"><span class="t">給餌</span>${pips(0)}</button><button data-action="pet"><span class="t">接触</span>${pips(0)}</button><button data-action="play" ${st.ap < 1 || night ? "disabled" : ""}><span class="t">遊戯</span>${pips(1)}</button><button data-action="explore" ${st.ap < 2 || night ? "disabled" : ""}><span class="t">外出</span>${pips(2)}</button><button data-action="rest"><span class="t">${night ? "記録" : "休止"}</span>${pips(0)}</button></div></section>`;
+<div class="bar" role="group" aria-label="操作"><button data-action="feed" class="${save.tutorial === "feed" ? "guide" : ""}"><span class="t">ごはん</span>${pips(0)}</button><button data-action="pet"><span class="t">なでる</span>${pips(0)}</button><button data-action="play" ${st.ap < 1 || night ? "disabled" : ""}><span class="t">あそぶ</span>${pips(1)}</button><button data-action="explore" ${st.ap < 2 || night ? "disabled" : ""}><span class="t">外出</span>${pips(2)}</button><button data-action="rest"><span class="t">${night ? "記録" : "休む"}</span>${pips(0)}</button></div></section>`;
   drawLog();
   // 背の低い画面では、下の記録と操作の帯に足元が隠れないよう、少し奥（上）に立たせる
   const short = view.clientHeight < 700;
@@ -249,7 +249,7 @@ function bindTouch(btn: HTMLButtonElement) {
 function feed() {
   const row = (item: C.ItemId, targets: C.FeedTarget[]) =>
     `<div class="food-row" data-item="${item}"><h3>${ITEM_NAME[item]}<small>残 ${st.inv[item]}</small></h3><p class="desc">${ITEM_NOTE[item]}</p><div class="row"></div></div>`;
-  show("給餌", `<p>備蓄を、誰に使うか選んでください。</p><div id="foods">${row("ration", [])}${row("can", [])}${row("dogfood", [])}</div>`);
+  show("ごはん", `<p>持ちものの食べものを、誰に使うか選んでください。</p><div id="foods">${row("ration", [])}${row("can", [])}${row("dogfood", [])}</div>`);
   const targetsOf: Record<string, C.FeedTarget[]> = { ration: ["dog", "half", "me"], can: ["dog", "me"], dogfood: ["dog"] };
   content.querySelectorAll<HTMLElement>(".food-row").forEach((rowEl) => {
     const item = rowEl.dataset.item as C.ItemId;
@@ -288,7 +288,7 @@ function feed() {
 function explore() {
   show(
     "外出",
-    `<p>屋外へ出て、備蓄を探します。行動回数を 2、電力も消費します。</p><label class="check"><input id="with-pet" type="checkbox" checked> ${esc(st.name)}と一緒に（活力 25 以上・満腹 10 以上）</label><div class="loc-list" id="locs"></div>`,
+    `<p>外へ出て、使えるものを探します。行動を 2 回使い、電力も減ります。</p><label class="check"><input id="with-pet" type="checkbox" checked> ${esc(st.name)}と一緒に（げんき 25 以上・おなか 10 以上）</label><div class="loc-list" id="locs"></div>`,
   );
   const list = content.querySelector("#locs")!;
   for (const loc of C.LOC_IDS.filter((k) => C.locUnlocked(st, k))) {
@@ -324,8 +324,8 @@ function explore() {
 
 const dayLines = (): string[] => {
   const d = st.daily, ph = phaseOfDay(st.day);
-  if (ph === 0) return ["本日の維持項目", `　給餌　${d.dogAte ? "実施" : "未実施"}`, `　接触　${d.pets}回`, `　遊戯　${d.played ? "あり" : "なし"}`];
-  if (ph === 1) return [`給餌 ${d.dogAte ? "○" : "－"}　接触 ${d.pets}回　遊戯 ${d.played ? "○" : "－"}`];
+  if (ph === 0) return ["今日の記録", `　ごはん　${d.dogAte ? "あり" : "なし"}`, `　なでる　${d.pets}回`, `　あそぶ　${d.played ? "あり" : "なし"}`];
+  if (ph === 1) return [`ごはん ${d.dogAte ? "○" : "－"}　なでる ${d.pets}回　あそぶ ${d.played ? "○" : "－"}`];
   if (ph === 2) return [`${st.name}：${d.pets >= 2 ? "よく触れた日" : "静かな日"}。`];
   return [];
 };
@@ -400,8 +400,8 @@ async function night() {
 }
 function rest() {
   if (st.pendingNight || st.ap < 1) return void night();
-  show("休止", `<p>今日の行動を終えて、休止します。残りの行動回数：${st.ap}。</p>`, [
-    { label: "休止する", action: () => { dialog.close(); void night(); } },
+  show("休む", `<p>今日の行動を終えて、休みます。残りの行動：${st.ap} 回。</p>`, [
+    { label: "休む", action: () => { dialog.close(); void night(); } },
     { label: "戻る", action: () => dialog.close() },
   ]);
 }
@@ -433,7 +433,7 @@ function openPanel(kind: "journal" | "supplies" | "settings") {
   const p = document.createElement("section");
   p.className = "panel";
   p.setAttribute("role", "dialog");
-  p.setAttribute("aria-label", kind === "journal" ? "記録" : "備蓄");
+  p.setAttribute("aria-label", kind === "journal" ? "記録" : "持ちもの");
   const close = () => { p.remove(); document.removeEventListener("keydown", onKey); };
   const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
   document.addEventListener("keydown", onKey);
@@ -448,14 +448,14 @@ function openPanel(kind: "journal" | "supplies" | "settings") {
             return `<article class="entry"><p class="when">DAY ${String(j.day).padStart(2, "0")}</p><h3>${esc(j.title)}</h3>${ls.map((l, i) => `<p class="${i === ls.length - 1 && ls.length > 1 ? "res" : ""}">${esc(l)}</p>`).join("")}</article>`;
           })
           .join("")
-      : `<p class="empty">記録は、まだありません。休止すると、その日の記録が残ります。</p>`;
+      : `<p class="empty">記録は、まだありません。休むと、その日の記録が残ります。</p>`;
   } else {
     const gear = (["ball", "blanket", "map"] as C.GearId[]).filter((k) => st.gear[k]).map((k) => ITEM_NAME[k]);
     body = `<div class="rows">${(["ration", "can", "dogfood"] as C.ItemId[]).map((k) => `<div class="r"><span>${ITEM_NAME[k]}</span><b>×${st.inv[k]}</b></div>`).join("")}</div>
 <p class="sub-h">持ち帰ったもの</p><div class="rows">${gear.length ? gear.map((g) => `<div class="r"><span>${g}</span><b>―</b></div>`).join("") : `<div class="r dim"><span>まだ、ありません</span></div>`}</div>
 <p class="sub-h">状態</p><div class="rows"><div class="r"><span>電力</span><b>${st.me.hp}%</b></div><div class="r"><span>配給</span><b>${st.registered ? "二名分" : "一名分"}</b></div></div>`;
   }
-  p.innerHTML = `<div class="panel-in"><div class="panel-head"><h2>${kind === "journal" ? "記録" : "備蓄"}</h2><button aria-label="閉じる">閉じる</button></div>${body}</div>`;
+  p.innerHTML = `<div class="panel-in"><div class="panel-head"><h2>${kind === "journal" ? "記録" : "持ちもの"}</h2><button aria-label="閉じる">閉じる</button></div>${body}</div>`;
   p.querySelector("button")!.addEventListener("click", close);
   main.append(p);
   p.querySelector<HTMLButtonElement>("button")!.focus({ preventScroll: true });

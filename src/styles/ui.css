@@ -62,7 +62,7 @@
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
 }
 .bar button { position: relative; min-height: 62px; display: grid; place-content: center; justify-items: center; gap: 5px; }
-.bar .t { font: 500 16px var(--sans); letter-spacing: 0.16em; padding-left: 0.16em; color: #fff; }
+.bar .t { font: 500 15.5px var(--sans); letter-spacing: 0.06em; padding-left: 0.06em; color: #fff; white-space: nowrap; }
 .bar .s { height: 6px; display: flex; gap: 4px; }
 .bar .s i { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); }
 .bar button:active:not(:disabled) .t { color: var(--accent); }
@@ -79,7 +79,7 @@
   .bar button { min-height: 52px; }
 }
 @media (max-width: 359px) {
-  .bar .t { letter-spacing: 0.1em; font-size: 13px; }
+  .bar .t { letter-spacing: 0.02em; font-size: 14px; }
   .topbar .who { display: none; }
   .vitals ul { gap: 8px; }
 }
@@ -181,4 +181,13 @@ label.check input { margin-top: 5px; accent-color: var(--accent); }
 @media (max-width: 399px) {
   .topbar .who { display: none; }
   .topbar { padding-left: 16px; }
+}
+.topbar .day, .menu button span { white-space: nowrap; }
+@media (max-width: 359px) {
+  .topbar { padding-left: 12px; padding-right: 2px; }
+  .topbar .day { gap: 6px; }
+  .topbar .day b { font-size: 13px; letter-spacing: 0.14em; }
+  .menu { gap: 2px; padding-right: 4px; }
+  .menu button span { padding: 5px 8px; font-size: 12px; letter-spacing: 0.06em; }
+  .vitals { padding: 0 12px; }
 }
