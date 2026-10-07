@@ -218,3 +218,15 @@ label.check input { margin-top: 5px; accent-color: var(--accent); }
 .eq-fix:disabled { opacity: 0.4; }
 .eq-na { font: 400 12px var(--sans); color: var(--faint); letter-spacing: 0.05em; }
 .finds p { padding: 12px 0; border-top: 1px solid var(--line); font: 400 14px/1.85 var(--sans); letter-spacing: 0.05em; color: var(--text); }
+
+/* ---- 点検する場所・見込み・観察 ---- */
+.places { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+.place { min-height: 56px; padding: 8px 6px; border: 1px solid var(--line-strong); border-radius: 8px; background: rgba(255, 255, 255, 0.07); display: grid; place-content: center; gap: 3px; text-align: center; }
+.place b { font: 500 14.5px var(--sans); letter-spacing: 0.1em; color: var(--text); }
+.place small { font: 400 11.5px var(--sans); letter-spacing: 0.04em; color: var(--dim); }
+.place.done { background: transparent; border-color: var(--line); }
+.place:disabled { opacity: 0.5; }
+.sub-h .dim { color: var(--faint); letter-spacing: 0.08em; margin-left: 6px; }
+.rows .r.warn b, .panel .note.warn { color: var(--warm); }
+.rows .r b.t { font: 400 13.5px var(--sans); letter-spacing: 0.05em; color: var(--text); text-align: right; }
+@media (max-width: 359px) { .places { grid-template-columns: repeat(2, 1fr); } }

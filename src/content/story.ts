@@ -7,7 +7,7 @@
  *   0（1〜7日）生存／対象・識別・登録  1（8〜14日）好み・安定  2（15〜22日）記録が目的に近づく  3（23日〜）表記が合わなくなる
  * 犬は「待ってくれている存在」、猫は「自由なのに、ここへ戻ってくる存在」として書き分ける（優劣ではない）。
  */
-import type { Ending, GameState } from "../game";
+import type { Ending, GameState, Observation, PlaceId, Want } from "../game";
 import { equipAverage, generation } from "../game";
 
 export type Phase = 0 | 1 | 2 | 3;
@@ -59,7 +59,7 @@ const NIGHTS: Record<number, Entry> = {
   10: () => one("外", ["外部カメラ：人影、0。", "遠くで、何かが崩れる音。", "帰宅予定：未登録。", "……帰宅の予定を、確かめる方法がない。"], "問いを記録した。答えは、ない。"),
   11: (n, st) => one("照明", ["照明、不安定。", `暗くなると、${n}は${dogcat(st, "こちらへ寄ってくる。", "窓の明かりのほうへ移る。")}`], "照明の電力を、見直す。"),
   12: (n) => one("雨", ["雨。パネルの灰が、流れた。", "発電量、わずかに回復。", `${n}は、雨の音に耳を動かした。`], "雨の音を記録した。用途は、ない。"),
-  13: (n) => one("室温", ["空調の出力、低下。", "室温を保てない夜が来る。", `${n}が、寝床で丸くなっている。`], "毛布の位置を、寝床に合わせた。"),
+  13: (n, st) => one("室温", ["空調の出力、低下。", "室温を保てない夜が来る。", `${n}が、寝床で丸くなっている。`], st.flags.blanket ? "毛布の位置を、寝床に合わせた。" : "寝床に敷けるものを、探す。"),
   14: (n) => one("跡", ["玩具が、寝床の横へ移動している。", "食器のまわりに、こぼれた跡。", `この部屋は、${n}が暮らしている部屋になった。`], "掃除の優先度を、下げた。"),
   15: (n) => one("名前", [`「${n}」。`, "呼びかけに、応答した。", "名称は、識別のためだけのものではなくなった。"], "名称の定義を、更新した。"),
   16: (n, st) => one("接触機構", ["接触機構に異常を検出しました。", "生命維持には、関係しない。", st.species === "dog" ? `${n}は、いつもの場所で待っていた。` : `${n}は、動かないアームの先を、前足でつついた。`, st.stats.armRepaired ? "修理した。" : "修理優先度……"],
@@ -80,9 +80,9 @@ const NIGHTS: Record<number, Entry> = {
   23: (n) => one("雨", ["雨。灰が流れる。", `${n}と、窓を見た。`, "何もしない時間。"], "この時間は、記録に分類できない。"),
   24: (n, st) => one("止まる", [st.species === "dog" ? `カメラが止まっても、${n}はここへ来て待つと推定。` : `カメラが止まっても、${n}はここへ戻ってくると推定。`, `自分が止まれば、${n}はまた、一匹になる。`, "……それは、命令の範囲外。"], "範囲外の項目を、削除しなかった。"),
   25: (n) => one("皿", ["給餌器、詰まり。", `${n}が、皿の前で待っていた。`, "修理を、最優先に設定した。"], "優先度を、自分で決めた。"),
-  26: (n) => one("玄関", [`玄関の前に、${n}が座っている。`, "何かを待っている。何を、かは、不明。", "玄関の灯りだけ、点けた。"], "扉は、開けなかった。"),
+  26: (n, st) => one("玄関", [`玄関の前に、${n}が座っている。`, "何かを待っている。何を、かは、不明。", st.flags.dismantled ? "外へ呼びかける手段は、もうない。玄関の灯りだけ、点けた。" : "玄関の灯りだけ、点けた。"], "扉は、開けなかった。"),
   27: () => one("手順書", ["世話の手順書を、読み返した。", "項目は、すべて満たしている。", "手順書にない行動のほうが、多い。"], "手順書は、書き換えない。"),
-  28: (n) => one("寒さ", ["外気温、低下。", `毛布を寝床へ。${n}が、すぐに丸くなった。`, "室温を、必要な設定より少し上げた。"], "「少し」は、数値にできない。"),
+  28: (n, st) => one("寒さ", ["外気温、低下。", st.flags.blanket ? `毛布を寝床へ。${n}が、すぐに丸くなった。` : `${n}が、こちらの機械の、温かいところに寄ってきた。`, "室温を、必要な設定より少し上げた。"], "「少し」は、数値にできない。"),
   29: (n) => one("前夜", [`${n}の状態、良好。`, "壊れていた記録の復元、最終段階。"], "明日、再生できる。"),
   30: (n) => ({ title: "記録", lines: ["記録を、再生する。", `${n}は、すぐ隣で眠っている。`, "復元率、100%。"], choices: [], after: ["再生します。"], record: true }),
 };
@@ -133,7 +133,10 @@ export const EVENT_LINE: Record<string, (st: GameState) => string> = {
   climate: () => "空調の出力が落ちた。",
   camera: () => "カメラ映像に、ノイズ。",
   feeder: () => "給餌器の動作が、不安定。",
-  rain: () => "雨。パネルの灰が洗い流された。",
+  rain: () => "雨。パネルの灰が洗い流された。雨水を、ためた。",
+  cold: (st) => `夜、室温が下がった。${st.name}が、丸くなっていた。`,
+  place: (st) => (st.day >= 15 ? "屋根裏への、はしごを下ろせた。点検できる。" : st.day >= 9 ? "物置の扉の歪みが、直った。点検できる。" : "床下収納の、ふたの位置を記録から見つけた。"),
+  arm: () => "",
   lowpower: () => "蓄電が少ない。今日は低電力で動く。",
   shutdown: () => "電力が尽きた。……再起動しました。今日は、ほとんど動けない。",
 };
@@ -151,6 +154,7 @@ export function findText(id: string, st: GameState): string {
     m_photo: "棚の奥に、写真立て。写っていたものは、焼けて見えない。",
     m_leash: st.species === "dog" ? "玄関に、使いかけの散歩用の紐。" : "棚の下に、羽の取れかけたおもちゃ。毛が絡まっている。",
     m_calendar: "カレンダー。災害の日に、丸印。予定の文字は、読めない。",
+    m_collar: `小さな箱に、新しい${st.species === "dog" ? "首輪" : "鈴"}。名札には、まだ何も書かれていない。`,
   } as Record<string, string>)[id] ?? "";
 }
 export const LOOK_NOTHING = ["外部映像に、変化なし。", "灰が、静かに降っている。", "遠くの建物の輪郭が、かすんでいる。"];
@@ -168,4 +172,83 @@ const VOICE: Record<string, V[][]> = {
 export function voice(kind: keyof typeof VOICE, st: GameState): string {
   const set = VOICE[kind]![phaseOfDay(st.day)]!;
   return set[Math.floor(Math.random() * set.length)]!(st.name);
+}
+
+// ---- その日のしたいこと（朝の様子・応えたとき・分かった好み）---------------------------------------
+/** 朝の様子。したいことを直接は言わず、しぐさで見せる（犬と猫で書き分ける） */
+const WANT_CUE: Record<Want, [string, string][]> = {
+  touch: [["{n}が、こちらを見上げている。", "{n}が、カメラの下に体をこすりつけた。"], ["{n}が、しっぽを振って待っている。", "{n}が、小さく鳴いて、こちらを見た。"]],
+  play: [["{n}が、おもちゃをくわえてきた。", "{n}が、床の影に飛びかかった。"], ["{n}が、前足を低くして、跳ねた。", "{n}が、何かを追いかけるように走った。"]],
+  window: [["{n}が、窓のほうを見ている。", "{n}が、窓の前に座って、外を見ている。"], ["{n}が、窓とこちらを交互に見ている。", "{n}が、窓のふちに前足をかけた。"]],
+  alone: [["{n}は、部屋の隅で丸くなっている。", "{n}は、ひとりで毛づくろいをしている。"], ["{n}は、少し離れた場所で、寝そべっている。", "{n}は、棚の陰から出てこない。"]],
+  rest: [["{n}は、眠そうにしている。", "{n}は、あくびをして、目を細めた。"], ["{n}は、寝床から動かない。", "{n}は、日だまりで、うとうとしている。"]],
+};
+export function wantCue(st: GameState): string {
+  if (!st.want) return "";
+  const set = WANT_CUE[st.want][st.day % 2]!;
+  return set[st.species === "dog" ? 0 : 1]!.replace("{n}", st.name);
+}
+/** 応えたとき（その日一度だけ）。段階が進むほど、理由を求めなくなる */
+const WANT_MET: Record<Want, string[]> = {
+  touch: ["接触要求に、応答。", "……これを、待っていた？", "{n}が、目を細めた。"],
+  play: ["活動要求に、応答。", "{n}が、満足そうに息をついた。", "{n}が、もう一度、跳ねた。"],
+  window: ["外部映像を、共有。", "{n}と、同じものを見た。", "{n}と、しばらく外を見ていた。"],
+  alone: ["", "", ""],
+  rest: ["", "", ""],
+};
+export function wantMetLine(st: GameState): string {
+  if (!st.want) return "";
+  const ph = phaseOfDay(st.day);
+  return (WANT_MET[st.want][ph === 0 ? 0 : ph === 1 ? 1 : 2] ?? "").replace("{n}", st.name);
+}
+/** 夜の記録に添える一行（したいことに応えられたか） */
+export function wantNight(st: GameState): string {
+  if (!st.want) return "";
+  const what = { touch: "そばにいること", play: "あそぶこと", window: "外を見ること", alone: "ひとりの時間", rest: "休むこと" }[st.want];
+  const ph = phaseOfDay(st.day);
+  if (st.daily.wantMet) return ph === 0 ? `要求：${what}。応答済み。` : `今日の${st.name}は、${what}を求めていた。応えられた。`;
+  if (st.want === "alone" && st.daily.pushedAway) return ph === 0 ? `要求：${what}。接触により、未達。` : `${st.name}は、ひとりでいたかった。触れすぎた。`;
+  return ph === 0 ? `要求：${what}。未達。` : `今日の${st.name}は、${what}を求めていた。応えられなかった。`;
+}
+/** 初めて応えられた好み（記録に残す） */
+export function learnedLine(w: Want, st: GameState): string {
+  const n = st.name;
+  return {
+    touch: `${n}は、そばにいることを好む。`,
+    play: `${n}は、あそぶことを好む。`,
+    window: `${n}は、外を見ることを好む。`,
+    alone: `${n}には、ひとりの時間が要る。`,
+    rest: `${n}は、静かに休める場所を好む。`,
+  }[w];
+}
+/** ひとりでいたい日に、触れたとき */
+export const awayLine = (st: GameState) => (st.species === "dog" ? `${st.name}は、少し離れて伏せた。` : `${st.name}は、するりと離れていった。`);
+
+// ---- 観察（記録の画面と夜の記録。数値を出さずに様子で） ---------------------------------------------
+export function observeLines(o: Observation, st: GameState): { label: string; text: string }[] {
+  const n = st.name;
+  return [
+    { label: "様子", text: { calm: "落ち着いている", uneasy: "ときどき、落ち着かない", restless: "落ち着かない日が続いている" }[o.mood] },
+    { label: "距離", text: { close: "そばを離れない", balanced: "近くにいて、ときどき離れる", own: "ひとりで過ごす時間が長い" }[o.distance] },
+    { label: "体調", text: { good: "良好", tired: "少し疲れている", weak: `弱っている。${n}を休ませたい` }[o.health] },
+  ];
+}
+
+// ---- 部屋の点検 --------------------------------------------------------------------------
+export const PLACE_NAME: Record<PlaceId, string> = { kitchen: "台所", shelf: "棚", closet: "押し入れ", entrance: "玄関", underfloor: "床下収納", storage: "物置", attic: "屋根裏" };
+export const PLACE_LOOK: Record<PlaceId, string> = {
+  kitchen: "戸棚と、冷蔵庫のまわりを確かめた。",
+  shelf: "棚の奥まで、照らした。",
+  closet: "押し入れの、上の段と下の段。",
+  entrance: "玄関の、靴箱のあたり。",
+  underfloor: "床下収納のふたを、開けた。",
+  storage: "物置の中は、ほこりをかぶっていた。",
+  attic: "屋根裏は、灰のにおいがした。",
+};
+export const BLANKET_LINE = "毛布を見つけた。寝床に敷いた。寒い夜に、少し強くなる。";
+export const DISMANTLE_LINE = "通信機を、分解した。……もう、外へ呼びかけることはできない。";
+
+/** しばらく開いていなかったとき（罰はない。待っていた様子だけ） */
+export function absenceLine(st: GameState): string {
+  return st.species === "dog" ? `${st.name}が、カメラの前で待っていた。` : `${st.name}が、窓辺から戻ってきた。`;
 }

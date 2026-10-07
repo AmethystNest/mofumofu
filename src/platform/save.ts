@@ -1,4 +1,4 @@
-import { isGame, newGame, type GameState, type Species } from "../game";
+import { isGame, newGame, upgrade, type GameState, type Species } from "../game";
 export type { Species };
 /** 導入のあとの最初の操作（食事→撫でる） */
 export type Tutorial = "feed" | "pet" | "done";
@@ -44,7 +44,7 @@ export function decodeSave(raw: string): Save | null {
     if (!isGame(game) || game.name.length > 8 || game.day > 9999) return null;
     return {
       version: 3,
-      game,
+      game: upgrade(game),
       journal: journalOf(value.journal),
       updatedAt: Number(value.updatedAt) || 0,
       tutorial: ["feed", "pet"].includes(value.tutorial) ? value.tutorial : "done",

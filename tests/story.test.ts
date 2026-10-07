@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { newGame, rest, resolveNight, nextDay, NIGHT_CHOICES, type Ending, type GameState } from "../src/game";
-import { CORE_LINE, EVENT_LINE, FULL_RECORD, endingText, findText, nightStory, phaseOfDay, voice } from "../src/content/story";
+import { BLANKET_LINE, CORE_LINE, DISMANTLE_LINE, EVENT_LINE, FULL_RECORD, PLACE_LOOK, PLACE_NAME, absenceLine, awayLine, endingText, findText, learnedLine, nightStory, observeLines, phaseOfDay, voice, wantCue, wantMetLine, wantNight } from "../src/content/story";
+import { WANTS, observe } from "../src/game";
 
 const FORBIDDEN = ["AI", "ＡＩ", "人工知能", "30日", "エンディング", "犬", "猫", "ホログラム", "クリア", "ミッション", "報酬", "TRUE"];
 const ENDINGS: Ending[] = ["together", "lastlight", "return", "waiting", "survival"];
@@ -17,8 +18,14 @@ function allText(): string[] {
       all.push(s.title, ...s.lines, ...s.choices, ...s.after, ...(s.subs ?? []));
     }
     for (const e of ENDINGS) { const t = endingText(e, at(30, sp)); all.push(t.title, ...t.lines); }
-    for (const id of ["r_ash", "r_sound", "r_lights", "r_tower", "r_bird", "m_note", "m_photo", "m_leash", "m_calendar"]) all.push(findText(id, at(5, sp)));
-    for (const k of Object.keys(EVENT_LINE)) all.push(EVENT_LINE[k]!(at(5, sp)));
+    for (const id of ["r_ash", "r_sound", "r_lights", "r_tower", "r_bird", "m_note", "m_photo", "m_leash", "m_calendar", "m_collar"]) all.push(findText(id, at(5, sp)));
+    for (const k of Object.keys(EVENT_LINE)) if (k !== "arm") all.push(EVENT_LINE[k]!(at(5, sp)));
+    all.push(...Object.values(PLACE_NAME), ...Object.values(PLACE_LOOK), BLANKET_LINE, DISMANTLE_LINE, absenceLine(at(5, sp)), awayLine(at(5, sp)));
+    for (const w of WANTS) for (const d of [2, 3, 9, 16, 25]) {
+      const g = at(d, sp); g.want = w; all.push(wantCue(g), learnedLine(w, g), wantNight(g));
+      g.daily.wantMet = true; all.push(wantNight(g)); const m = wantMetLine(g); if (m) all.push(m);
+    }
+    for (const [s1, d1, i1] of [[10, 10, 80], [50, 50, 50], [90, 80, 10]]) { const g = at(5, sp); g.pet.stress = s1!; g.pet.depend = d1!; g.pet.indep = i1!; for (const o of observeLines(observe(g), g)) all.push(o.label, o.text); }
     for (const k of ["feed", "water", "pet", "play", "idle", "morning"] as const)
       for (const d of [1, 9, 16, 25]) for (let i = 0; i < 6; i++) all.push(voice(k, at(d, sp)));
   }

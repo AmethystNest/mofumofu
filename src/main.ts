@@ -3,7 +3,7 @@ import "./styles/stage.css";
 import "./styles/ui.css";
 import "./styles/intro.css";
 import * as G from "./game";
-import { CORE_LINE, EVENT_LINE, FULL_RECORD, LOOK_NOTHING, endingText, findText, nightStory, phaseOfDay, voice } from "./content/story";
+import { BLANKET_LINE, CORE_LINE, DISMANTLE_LINE, EVENT_LINE, FULL_RECORD, LOOK_NOTHING, PLACE_LOOK, PLACE_NAME, absenceLine, awayLine, endingText, findText, learnedLine, nightStory, observeLines, phaseOfDay, voice, wantCue, wantMetLine, wantNight } from "./content/story";
 import { clearSave, loadSave, persist, type Save } from "./platform/save";
 import type { Motion, PetMotion } from "./render/pet-sprite";
 import { petBoxHtml, petDef, placePet, stageForDay } from "./render/pets";
@@ -41,7 +41,7 @@ const CLIMATE_TEXT: Record<G.ClimateMode, string> = { off: "切", eco: "控え�
 let lines: { t: string; sys: boolean }[] = [];
 const sysTutorial = () => save.tutorial !== "done";
 function say(text: string, sys = sysTutorial()) {
-  if (!text) return;
+  if (!text || lines[lines.length - 1]?.t === text) return;
   lines.push({ t: text, sys });
   lines = lines.slice(-2);
   drawLog();
@@ -51,7 +51,11 @@ function drawLog() {
   if (!el) return;
   el.innerHTML = lines.map((l, i) => `<p class="${i === lines.length - 1 ? "now" : "old"}${l.sys ? " sys" : ""}">${esc(l.t)}</p>`).join("");
 }
-say(save.updatedAt && save.tutorial === "feed" ? SYS_FEED : save.updatedAt && save.tutorial === "pet" ? SYS_ATE : voice("idle", st), save.tutorial !== "done");
+say(save.updatedAt && save.tutorial === "feed" ? SYS_FEED : save.updatedAt && save.tutorial === "pet" ? SYS_ATE : (!st.pending && wantCue(st)) || voice("idle", st), save.tutorial !== "done");
+/** しばらく開いていなかった：待っていた様子だけを見せる（罰はない） */
+const ABSENT_MS = 3 * 60 * 60 * 1000;
+const returned = !!save.updatedAt && save.tutorial === "done" && !st.pending && Date.now() - st.lastSeen > ABSENT_MS;
+if (returned) say(absenceLine(st), false);
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<main><div id="view"></div></main><dialog id="dialog"><div id="dialog-content"></div></dialog>`;
@@ -65,7 +69,17 @@ let wander: Wander | undefined,
   effects: Effects | undefined,
   sighTimer = 0,
   renderId = 0;
-let busy = false;
+let busy = false, greeted = false;
+/** その日、したいことに応えた一言を出したか */
+let metSaidDay = 0;
+/** 行動のあと：したいことに初めて応えられたら、一言 */
+function checkWant() {
+  if (metSaidDay === st.day || !st.want || !G.wantMet(st)) return;
+  if (st.want === "alone" || st.want === "rest") return;
+  metSaidDay = st.day;
+  const line = wantMetLine(st);
+  if (line) window.setTimeout(() => say(line, phaseOfDay(st.day) === 0), 1500);
+}
 /** ペットの準備ができてから実行する演出（描き直し直後の操作でも取りこぼさない） */
 let afterPet: (() => void)[] = [];
 function withPet(fn: () => void) {
@@ -110,6 +124,8 @@ function reasonText(reason: string): string {
     parts: "部品が、足りない。",
     fine: "修理の必要は、ない。",
     outside: "通信の異常は、家の外にある。ここからは直せない。",
+    empty: "そこには、もう何もない。",
+    closed: "まだ、開けられない。",
   } as Record<string, string>)[reason] ?? "実行できない。";
 }
 
@@ -189,6 +205,8 @@ async function render() {
       sighTimer = window.setInterval(() => effects?.sigh(), 7000);
     }
     if (import.meta.env.DEV) Object.assign(window, { __play: (m: Motion, ms?: number) => motion?.react(m, ms), __st: st });
+    if (returned && !greeted) { greeted = true; window.setTimeout(() => void wander?.walkTo(50).then(() => motion?.look(0)), 600); }
+    else if (st.want === "alone" && !st.pending && !st.daily.pets) window.setTimeout(() => void wander?.walkTo(rememberedCx() < 50 ? 33 : 67), 1400);
     const queued = afterPet;
     afterPet = [];
     for (const fn of queued) fn();
@@ -219,6 +237,13 @@ function pet() {
     if (st.daily.touchFailed === 2) window.setTimeout(() => say(st.species === "dog" ? `${n()}は、その場で待っている。` : `${n()}が、止まったアームを前足でつついた。`, false), 2600);
     return;
   }
+  if (r.note === "away") {
+    if (st.daily.pushedAway === 1) say(awayLine(st), false);
+    else if (st.daily.pushedAway === 2) say("……今日は、ひとりにしておく。", true);
+    refreshVitals();
+    withPet(() => void wander?.walkTo(rememberedCx() < 50 ? 68 : 32));
+    return;
+  }
   const first = save.tutorial === "pet";
   if (first) {
     save.tutorial = "done";
@@ -232,6 +257,7 @@ function pet() {
   react("pet");
   withPet(() => effects!.hearts(r.note === "enough" ? 1 : 3));
   refreshVitals();
+  checkWant();
 }
 
 /** ペットへのタッチ：タップ・なでる・長押しで「接触」。キーボードの決定でも */
@@ -330,6 +356,7 @@ function play() {
   const r = G.play(st);
   if (!r.ok) return say(reasonText(r.reason), false);
   say(voice("play", st));
+  checkWant();
   update();
   window.setTimeout(() => {
     react("play", 3000);
@@ -344,19 +371,22 @@ function look() {
   const text = r.find ? findText(r.find, st) : LOOK_NOTHING[Math.floor(Math.random() * LOOK_NOTHING.length)]!;
   if (r.find) save.journal.push({ day: st.day, title: "窓の外", text });
   say(text, false);
+  checkWant();
   update();
 }
 
-/** 部屋を点検する：部品・食料・手がかり */
-function search() {
-  const r = G.search(st);
+/** 部屋を点検する：場所ごとに、決まったものが順に見つかる */
+function search(place: G.PlaceId) {
+  const r = G.search(st, place);
   if (!r.ok) return say(reasonText(r.reason), false);
   const f = r.found;
-  const got = [f.parts ? `部品 ×${f.parts}` : "", f.food ? `食料 ×${f.food}` : ""].filter(Boolean);
+  const got = [f.parts ? `部品 ×${f.parts}` : "", f.food ? `食料 ×${f.food}` : "", f.water ? `水 ×${f.water}` : ""].filter(Boolean);
   const memo = f.memo ? findText(f.memo, st) : "";
-  if (memo) save.journal.push({ day: st.day, title: "部屋", text: memo });
+  if (memo) save.journal.push({ day: st.day, title: PLACE_NAME[place], text: memo });
   update();
-  show("点検", `<p>棚と、床下の収納を確かめた。</p>${memo ? `<p>${esc(memo)}</p>` : ""}<p class="loot">${esc(got.length ? got.join("\n") : "使えるものは、なかった。").replace(/\n/g, "<br>")}</p>`, [{ label: "戻る", action: () => dialog.close() }]);
+  const body = [PLACE_LOOK[place], memo, f.blanket ? BLANKET_LINE : ""].filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join("");
+  const rest = G.placeLeft(st, place) > 0 ? "まだ、奥に何かありそうだ。" : "ここは、もう確かめ終えた。";
+  show(`点検　${PLACE_NAME[place]}`, `${body}<p class="loot">${esc(got.length ? got.join("\n") : f.blanket ? "毛布 ×1" : "使えるものは、なかった。").replace(/\n/g, "<br>")}</p><p class="note">${rest}</p>`, [{ label: "戻る", action: () => dialog.close() }]);
 }
 
 function doRepair(id: G.EquipId) {
@@ -385,14 +415,15 @@ function openPanelShell(label: string, body: string): Panel {
   return p;
 }
 function room(scrollTop = 0) {
-  const gen = G.generation(st), use = G.upkeep(st);
+  const gen = G.generation(st), use = G.upkeep(st), fc = G.powerForecast(st);
+  const tonight = G.roomTemp(st), cold = tonight < G.coldLine(st);
   const noAp = st.ap < 1;
   const eq = (id: G.EquipId) => {
     const v = Math.max(0, st.equip[id]), s = G.statusOf(v);
-    const outside = id === "comms" && st.day >= 8;
+    const outside = id === "comms";
     const cost = G.REPAIR_COST[id];
     const btn = outside
-      ? `<span class="eq-na">家の外の異常</span>`
+      ? st.flags.dismantled ? `<span class="eq-na">分解済み</span>` : v <= 0 ? `<button class="eq-fix" data-dismantle>分解<small>部品 +${G.DISMANTLE_PARTS}</small></button>` : `<span class="eq-na">家の外の異常</span>`
       : s !== "ok"
         ? `<button class="eq-fix" data-fix="${id}" ${noAp || st.parts < cost ? "disabled" : ""}>修理<small>部品 ${cost}</small></button>`
         : `<span class="eq-na"></span>`;
@@ -403,13 +434,18 @@ function room(scrollTop = 0) {
   const body = `
 <div class="acts">
   <button class="btn" data-do="look" ${noAp || st.equip.camera <= 0 ? "disabled" : ""}>窓の外を見る<small>${st.equip.camera <= 0 ? "カメラが停止中" : "行動 1・カメラで外の様子を確かめる"}</small></button>
-  <button class="btn" data-do="search" ${noAp ? "disabled" : ""}>部屋を点検する<small>行動 1・部品や食料が見つかることがある</small></button>
 </div>
+<p class="sub-h">点検する場所　<span class="dim">行動 1</span></p>
+<div class="places">${G.PLACE_IDS.map((id) => {
+    const open = G.placeOpen(st, id), left = G.placeLeft(st, id), seen = st.places[id] ?? 0;
+    const state = !open ? "まだ開かない" : left <= 0 ? "確かめ終えた" : seen ? "まだ何かある" : "未確認";
+    return `<button class="place${left <= 0 || !open ? " done" : ""}" data-place="${id}" ${noAp || !open || left <= 0 ? "disabled" : ""}><b>${PLACE_NAME[id]}</b><small>${state}</small></button>`;
+  }).join("")}</div>
 <p class="sub-h">電力</p>
-<div class="rows"><div class="r"><span>蓄電</span><b>${st.power}%</b></div><div class="r"><span>発電</span><b>一日 +${gen}</b></div><div class="r"><span>消費</span><b>一日 −${use}</b></div></div>
+<div class="rows"><div class="r"><span>蓄電</span><b>${st.power}%</b></div><div class="r"><span>発電</span><b>一日 +${gen}</b></div><div class="r"><span>消費</span><b>一日 −${use}</b></div><div class="r ${fc < 15 ? "warn" : ""}"><span>明日の朝の見込み</span><b>${fc}%</b></div></div>
 <div class="ctl"><span>照明</span><div class="seg"><button data-lights="1" aria-pressed="${st.lights}" ${st.equip.light <= 0 ? "disabled" : ""}>点ける</button><button data-lights="0" aria-pressed="${!st.lights}">消す</button></div></div>
 <div class="ctl"><span>空調</span><div class="seg">${seg(st.climate)}</div></div>
-<p class="note">室温 ${st.temp.toFixed(1)}℃。積もった灰で、発電は下がる。</p>
+<p class="note ${cold ? "warn" : ""}">今夜の室温の見込み ${tonight.toFixed(1)}℃${cold ? "。寒い夜になる" : ""}${st.flags.blanket ? "（毛布あり）" : ""}。積もった灰で、発電は下がる。行動にも電力を使う。</p>
 <p class="sub-h">設備</p>
 <div class="eqs">${G.EQUIP.map(eq).join("")}</div>
 <p class="sub-h">備蓄</p>
@@ -418,7 +454,14 @@ function room(scrollTop = 0) {
   const p = openPanelShell("部屋", body);
   p.scrollTop = scrollTop;
   const again = () => { const y = p.scrollTop; p.close(); room(y); };
-  p.querySelectorAll<HTMLButtonElement>("[data-do]").forEach((b) => (b.onclick = () => { p.close(); (b.dataset.do === "look" ? look : search)(); }));
+  p.querySelectorAll<HTMLButtonElement>("[data-do]").forEach((b) => (b.onclick = () => { p.close(); look(); }));
+  p.querySelectorAll<HTMLButtonElement>("[data-place]").forEach((b) => (b.onclick = () => { p.close(); search(b.dataset.place as G.PlaceId); }));
+  p.querySelector<HTMLButtonElement>("[data-dismantle]")?.addEventListener("click", () => {
+    show("通信機を分解しますか？", `<p>止まった通信機から、部品を${G.DISMANTLE_PARTS}個取り出せます。行動は使いません。</p><p>通信機は、元に戻せません。</p>`, [
+      { label: "分解する", action: () => { G.dismantle(st); dialog.close(); say(DISMANTLE_LINE, true); update(); again(); } },
+      { label: "やめる", action: () => dialog.close() },
+    ]);
+  });
   p.querySelectorAll<HTMLButtonElement>("[data-fix]").forEach((b) => (b.onclick = () => { doRepair(b.dataset.fix as G.EquipId); again(); }));
   p.querySelectorAll<HTMLButtonElement>("[data-lights]").forEach((b) => (b.onclick = () => { G.setLights(st, b.dataset.lights === "1"); update(); again(); }));
   p.querySelectorAll<HTMLButtonElement>("[data-climate]").forEach((b) => (b.onclick = () => { G.setClimate(st, b.dataset.climate as G.ClimateMode); update(); again(); }));
@@ -427,10 +470,12 @@ function room(scrollTop = 0) {
 // ---- 夜 -----------------------------------------------------------------------------------
 const dayLines = (): string[] => {
   const d = st.daily, ph = phaseOfDay(st.day);
-  if (ph === 0) return ["今日の記録", `　ごはん　${d.fed}回`, `　水　　　${d.watered ? "あり" : "なし"}`, `　なでる　${d.pets}回`, `　室温　　${st.temp.toFixed(1)}℃`];
-  if (ph === 1) return [`ごはん ${d.fed}回　水 ${d.watered ? "○" : "－"}　なでる ${d.pets}回`, `室温 ${st.temp.toFixed(1)}℃　蓄電 ${st.power}%`];
-  if (ph === 2) return [`${n()}：${d.pets >= 2 || d.played ? "よく触れた日" : "静かな日"}。`, `蓄電 ${st.power}%`];
-  return [`蓄電 ${st.power}%`];
+  const w = wantNight(st);
+  const obs = observeLines(G.observe(st), st)[0]!;
+  if (ph === 0) return ["今日の記録", `　ごはん　${d.fed}回`, `　水　　　${d.watered ? "あり" : "なし"}`, `　なでる　${d.pets}回`, `　室温　　${st.temp.toFixed(1)}℃`, ...(w ? [w] : [])];
+  if (ph === 1) return [`ごはん ${d.fed}回　水 ${d.watered ? "○" : "－"}　なでる ${d.pets}回`, `室温 ${st.temp.toFixed(1)}℃　蓄電 ${st.power}%`, ...(w ? [w] : [])];
+  if (ph === 2) return [...(w ? [w] : []), `${st.name}の様子：${obs.text}。`, `蓄電 ${st.power}%`];
+  return [...(w ? [w] : []), `蓄電 ${st.power}%`];
 };
 
 async function playFullRecord(sc: Scene) {
@@ -475,7 +520,10 @@ async function night() {
   wander?.stop();
   // 休止：明かりを落とし、その子は眠る
   withPet(() => { motion!.set("sleep"); effects!.sleepy(true); });
+  const knew = st.learned.length;
   G.rest(st);
+  const learned = st.learned.slice(knew);
+  for (const w of learned) save.journal.push({ day: st.day, title: "好み", text: learnedLine(w, st) });
   store();
   const story = nightStory(st);
   const sc = await openScene(document.body, { veil: 0.94 });
@@ -484,6 +532,7 @@ async function night() {
     if (!st.pending!.resolved) {
       await sc.say("休止処理を開始します。", "log", 1500);
       for (const l of dayLines()) await sc.say(l, "log", 900);
+      for (const w of learned) await sc.say(learnedLine(w, st), "log", 2000);
       await sc.wait(600);
       await sc.clear();
       await sc.say(`${String(st.day).padStart(2, "0")}　／　${story.title}`, "head", 900);
@@ -513,6 +562,7 @@ async function night() {
     lines = [];
     say(voice("morning", st), false);
     for (const ev of events) say(EVENT_LINE[ev]?.(st) ?? "", true);
+    say(wantCue(st), false);
     store();
     await sc.say(`DAY ${String(st.day).padStart(2, "0")}`, "day", 2400);
     await render();
@@ -547,7 +597,8 @@ function journal() {
         .join("")
     : `<p class="empty">記録は、まだありません。休むと、その日の記録が残ります。</p>`;
   const found = finds.length ? `<p class="sub-h">見つけたもの　${finds.length}</p><div class="finds">${finds.map((f) => `<p>${esc(f)}</p>`).join("")}</div><p class="sub-h">日々</p>` : "";
-  openPanelShell("記録", found + entries);
+  const obs = st.day >= 2 ? `<p class="sub-h">観察　${esc(n())}</p><div class="rows">${observeLines(G.observe(st), st).map((o) => `<div class="r"><span>${o.label}</span><b class="t">${esc(o.text)}</b></div>`).join("")}</div>${st.learned.length ? `<p class="sub-h">分かったこと</p><div class="finds">${st.learned.map((w) => `<p>${esc(learnedLine(w, st))}</p>`).join("")}</div>` : ""}` : "";
+  openPanelShell("記録", obs + found + (obs && !found ? `<p class="sub-h">日々</p>` : "") + entries);
 }
 
 function settings() {

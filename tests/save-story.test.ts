@@ -6,7 +6,7 @@ import fs from "node:fs";
 describe("保存", () => {
   it("乱数の状態ごと往復できる", () => {
     const game = newGame("ハル", "dog", 1, 0);
-    search(game);
+    search(game, "kitchen");
     rest(game);
     resolveNight(game, 0);
     nextDay(game);
