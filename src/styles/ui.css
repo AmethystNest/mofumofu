@@ -230,3 +230,6 @@ label.check input { margin-top: 5px; accent-color: var(--accent); }
 .rows .r.warn b, .panel .note.warn { color: var(--warm); }
 .rows .r b.t { font: 400 13.5px var(--sans); letter-spacing: 0.05em; color: var(--text); text-align: right; }
 @media (max-width: 359px) { .places { grid-template-columns: repeat(2, 1fr); } }
+
+/* 上の帯・状態・操作のまとまり（配置は .stage 基準のまま） */
+.hud { display: contents; }

@@ -11,26 +11,45 @@ export interface PetLayout {
   tailArea: [number, number, number, number];   // x0,y0,x1,y1
 }
 
+export interface Bowl {
+  /** 入れ終わったら解決する */
+  ready: Promise<void>;
+  /** 食べる・飲む（ms のあいだに中身が減り、器が片づく） */
+  consume(ms: number): void;
+}
 export interface Effects {
   hearts(count?: number, at?: [number, number]): void;
   sparkles(count?: number): void;
-  bowl(ms: number, kind?: 'food' | 'water'): void;
+  /** 器を出して、中身を入れる（ごはんは粒が落ちて山になる／水は注がれて水面が上がる）。cx は部屋の幅に対する %（省略時はペットの足元） */
+  serve(kind: 'food' | 'water', cx?: number): Bowl;
   sleepy(on: boolean): void;
   sigh(): void;
   destroy(): void;
 }
 
-/** 器（横 100×高さ 52）。粒は後ろの列から順に減る */
-const KIBBLE: [number, number][] = [[50, 16], [38, 18], [62, 18], [28, 22], [44, 22], [57, 22], [72, 22], [35, 26], [50, 26], [65, 26]];
-const BOWL = `<svg viewBox="0 0 100 52" aria-hidden="true">
-<ellipse class="b-shadow" cx="50" cy="47" rx="44" ry="5"/>
-<path class="b-body" d="M6 21 Q8 42 24 46 L76 46 Q92 42 94 21 Z"/>
-<path class="b-band" d="M9 31 Q50 39 91 31 L90 35 Q50 43 10 35 Z"/>
-<ellipse class="b-rim" cx="50" cy="21" rx="44" ry="10"/>
-<ellipse class="b-in" cx="50" cy="22" rx="38" ry="7"/>
-${KIBBLE.map(([x, y], i) => `<ellipse class="kibble" style="--i:${KIBBLE.length - i}" cx="${x}" cy="${y}" rx="5" ry="3.4"/>`).join('')}
-<path class="b-gloss" d="M14 24 Q16 34 24 39" />
-</svg>`;
+/** ごはんの器（横 120×高さ 64）。粒は山の上から順に減る */
+const KIBBLE: [number, number][] = [
+  [60, 17], [52, 19], [68, 19], [45, 22], [57, 22], [69, 22], [77, 23], [38, 25], [49, 25], [61, 25], [72, 25], [83, 26],
+  [32, 28], [42, 28], [53, 28], [64, 28], [75, 28], [87, 29],
+];
+let uid = 0;
+function bowlSvg(kind: 'food' | 'water'): string {
+  const id = `b${++uid}`;
+  const shell = `<ellipse class="b-shadow" cx="60" cy="58" rx="52" ry="6"/>
+<path class="b-body" d="M7 30 Q9 51 30 56 L90 56 Q111 51 113 30 Z"/>
+<path class="b-band" d="M10 40 Q60 50 110 40 L108 45 Q60 55 12 45 Z"/>
+<ellipse class="b-rim" cx="60" cy="30" rx="53" ry="11.5"/>
+<ellipse class="b-in" cx="60" cy="31" rx="46" ry="8.5"/>`;
+  if (kind === 'food')
+    return `<svg viewBox="0 0 120 64" aria-hidden="true">${shell}
+${KIBBLE.map(([x, y], i) => `<g class="kibble" style="--i:${i};--j:${KIBBLE.length - i}"><ellipse cx="${x}" cy="${y}" rx="5.6" ry="4"/><ellipse class="k-hi" cx="${x - 1.6}" cy="${y - 1.4}" rx="1.8" ry="1.1"/></g>`).join('')}
+<path class="b-gloss" d="M16 35 Q18 46 28 51"/></svg>`;
+  return `<svg viewBox="0 0 120 64" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe8fb"/><stop offset="1" stop-color="#4f9fcd"/></linearGradient></defs>${shell}
+<rect class="w-stream" x="57" y="-70" width="6" height="101" rx="3"/>
+<g class="w-surface"><ellipse cx="60" cy="31.5" rx="44" ry="7.6" fill="url(#${id})"/><path class="w-glint" d="M34 29 Q48 26 62 28"/></g>
+<ellipse class="w-ripple r1" cx="60" cy="31.5" rx="10" ry="2.2"/><ellipse class="w-ripple r2" cx="60" cy="31.5" rx="10" ry="2.2"/>
+<path class="b-gloss" d="M16 35 Q18 46 28 51"/></svg>`;
+}
 
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -76,18 +95,26 @@ export function createEffects(card: HTMLElement, dog: HTMLElement, L: PetLayout)
           { '--drift': `${(Math.random() - 0.3) * 40}px`, '--scale': `${0.7 + Math.random() * 0.6}` }), i * 110);
       }
     },
-    bowl(ms, kind = 'food') {
-      // 足元の器：中のごはんが少しずつ減っていく
-      // 器は足の前に小さく置き、足先が隠れすぎないよう床側へ下げる
-      const el = spawn('fx-bowl', L.floor, ms + 500);
-      el.innerHTML = BOWL;
-      if (kind === 'water') el.classList.add('water');
-      el.style.setProperty('--eat', `${ms}ms`);
-      if (reduced()) el.classList.add('still');
-      // 狭い画面では器が部屋の説明文に重なるので、食べている間だけ文を退ける
+    serve(kind, cx) {
+      // 器は足元の手前に置く（前足に少し重なる。食べる・飲む姿勢の口元が器に入る）
+      const el = spawn(`fx-bowl ${kind}`, [L.floor[0], L.floor[1] + L.h * 0.03], 60000);
+      el.innerHTML = bowlSvg(kind);
+      el.style.width = `${dog.getBoundingClientRect().width * 0.34}px`;
+      if (cx !== undefined) el.style.left = `${(card.getBoundingClientRect().width * cx) / 100}px`;
+      const still = reduced();
+      if (still) el.classList.add('still');
+      // 狭い画面では器が部屋の説明文に重なるので、器があるあいだは文を退ける
       card.classList.add('fx-eating');
-      later(() => el.classList.add('leave'), ms);
-      later(() => card.classList.remove('fx-eating'), ms + 450);
+      const fill = still ? 0 : kind === 'food' ? 1150 : 1100;
+      return {
+        ready: new Promise<void>((done) => later(done, fill)),
+        consume(ms) {
+          el.style.setProperty('--eat', `${ms}ms`);
+          el.classList.add('eating');
+          later(() => el.classList.add('leave'), ms + 200);
+          later(() => { el.remove(); card.classList.remove('fx-eating'); }, ms + 700);
+        },
+      };
     },
     sleepy(on) {
       window.clearInterval(zzz);

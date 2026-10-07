@@ -172,39 +172,48 @@
   20%, 75% { opacity: 1; transform: translate(-50%, -70%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -90%) scale(1); }
 }
-/* 足元の器：中のごはんが少しずつ減る */
+/* 足元の器：出す → 中身が入る（粒が落ちる／水が注がれて水面が上がる）→ 食べる・飲むと減る → 片づく */
 .fx-bowl {
-  width: 14cqw;
-  transform: translate(-50%, -34%);
-  animation: fx-bowl-in .35s ease-out both;
+  transform: translate(-50%, -82%);
+  animation: fx-bowl-in .4s cubic-bezier(.2, .8, .3, 1) both;
+  filter: drop-shadow(0 1px 2px #0003);
 }
 .fx-bowl svg { display: block; width: 100%; height: auto; overflow: visible; }
-.fx-bowl .b-shadow { fill: #3c2a1c; opacity: .22; }
-.fx-bowl .b-body { fill: #7e9c98; stroke: #4c6461; stroke-width: 1.6; stroke-linejoin: round; }
-.fx-bowl .b-band { fill: #e7dccb; opacity: .85; }
-.fx-bowl .b-rim { fill: #a9c1bd; stroke: #4c6461; stroke-width: 1.6; }
-.fx-bowl .b-in { fill: #57706d; }
-.fx-bowl .b-gloss { fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; opacity: .35; }
-.fx-bowl .kibble {
-  fill: #b77a43;
-  stroke: #6e4322;
-  stroke-width: 1;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: fx-eaten .3s ease-in forwards;
-  animation-delay: calc(var(--eat) * (.08 + var(--i) * .075));
-}
+.fx-bowl .b-shadow { fill: #1b1f2a; opacity: .28; }
+.fx-bowl .b-body { stroke-width: 1.6; stroke-linejoin: round; }
+.fx-bowl .b-rim { stroke-width: 1.6; }
+.fx-bowl .b-gloss { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; opacity: .4; }
+/* ごはん：生成りの器に赤い帯、茶色の粒 */
+.fx-bowl.food .b-body { fill: #ece0cb; stroke: #7c5f45; }
+.fx-bowl.food .b-band { fill: #b4503a; }
+.fx-bowl.food .b-rim { fill: #f6efe2; stroke: #7c5f45; }
+.fx-bowl.food .b-in { fill: #5e4733; }
+.fx-bowl .kibble { fill: #b8743a; stroke: #643716; stroke-width: 1; transform-box: fill-box; transform-origin: center;
+  animation: kib-drop .42s cubic-bezier(.3, .7, .4, 1.25) both; animation-delay: calc(180ms + var(--j) * 40ms); }
+.fx-bowl .kibble .k-hi { fill: #e8b27a; stroke: none; }
+.fx-bowl.food.eating .kibble { animation: fx-eaten .3s ease-in forwards; animation-delay: calc(var(--eat) * (.06 + var(--i) * .045)); }
+@keyframes kib-drop { from { transform: translateY(-46px); opacity: 0; } 35% { opacity: 1; } }
+@keyframes fx-eaten { from { opacity: 1; } to { opacity: 0; transform: scale(.3) translateY(-60%); } }
+/* 水：青みのある金属の器、注がれる水と上がる水面、飲むと波紋が立って水位が下がる */
+.fx-bowl.water .b-body { fill: #a9c2cf; stroke: #44606f; }
+.fx-bowl.water .b-band { fill: #dfeef5; opacity: .9; }
+.fx-bowl.water .b-rim { fill: #cfe1ea; stroke: #44606f; }
+.fx-bowl.water .b-in { fill: #3b5463; }
+.fx-bowl .w-stream { fill: #b9e6fb; opacity: 0; transform-box: fill-box; transform-origin: top; animation: w-pour 1s ease-in-out both; }
+.fx-bowl .w-surface { transform-box: fill-box; transform-origin: center; animation: w-rise .85s ease-out .2s both; }
+.fx-bowl .w-glint { fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; opacity: .8; }
+.fx-bowl .w-ripple { fill: none; stroke: #fff; stroke-width: 1.2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.fx-bowl.water.eating .w-surface { animation: w-drink var(--eat) linear forwards; }
+.fx-bowl.water.eating .w-ripple { animation: w-ripple .9s ease-out infinite; }
+.fx-bowl.water.eating .w-ripple.r2 { animation-delay: .45s; }
+@keyframes w-pour { 0% { opacity: 0; transform: scaleY(0); } 15% { opacity: .95; } 60% { opacity: .95; transform: scaleY(1); } 100% { opacity: 0; transform: scaleY(1); } }
+@keyframes w-rise { from { transform: translateY(5px) scale(.35); opacity: .2; } }
+@keyframes w-drink { to { transform: translateY(3.5px) scale(.6); } }
+@keyframes w-ripple { from { opacity: .8; transform: scale(.4); } to { opacity: 0; transform: scale(3.6); } }
 .stage:has(.scene.fx-eating) .log { opacity: 0; transition: opacity 0.3s; }
-.fx-bowl.water .kibble { display: none; }
-.fx-bowl.water .b-in { fill: #7fb5d8; }
-.fx-bowl.still, .fx-bowl.still .kibble { animation: none; }
-.fx-bowl.leave { transition: opacity .45s ease; opacity: 0; }
-@keyframes fx-bowl-in {
-  from { opacity: 0; transform: translate(-50%, -40%) scale(.9); }
-}
-@keyframes fx-eaten {
-  to { opacity: 0; transform: scale(.3) translateY(-60%); }
-}
+.fx-bowl.still, .fx-bowl.still * { animation: none !important; }
+.fx-bowl.leave { transition: opacity .45s ease, transform .45s ease; opacity: 0; transform: translate(-50%, -76%); }
+@keyframes fx-bowl-in { from { opacity: 0; transform: translate(-50%, -96%) scale(.92); } }
 
 /* ---- 窓：降る灰とシャッター。位置は部屋の絵の窓（941×1672 の x205–740・y285–592）に合わせる ---- */
 .win {

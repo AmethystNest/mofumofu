@@ -75,6 +75,19 @@ function loadShared() {
 export const stillSrc = (char: string) => `${root()}${char}/still.webp`;
 
 /**
+ * 素材では「あそぶ」「なでられる」のコマが待機より 2〜15% 小さく描かれている。
+ * 待機の絵と輪郭が最もよく重なる倍率（足元を支点、提供素材から実測）で拡大し、動作のたびに縮んで見えないようにする。
+ */
+const POSE_SCALE: Record<string, { play: number; petted: number }> = {
+  cat_baby: { play: 1.11, petted: 1.08 },
+  cat_young: { play: 1.1, petted: 1.08 },
+  cat_adult: { play: 1.15, petted: 1.1 },
+  dog_baby: { play: 1.12, petted: 1.1 },
+  dog_young: { play: 1.09, petted: 1.02 },
+  dog_adult: { play: 1.11, petted: 1.02 },
+};
+
+/**
  * ペット（種類×成長段階）の動きを作る。slot は画面上の置き場所（'home' など）。
  * walkScale：歩きのコマは待機より小さく描かれているので、頭の大きさが揃うよう拡大する倍率（足元を支点）。
  */
@@ -250,8 +263,8 @@ async function init(): Promise<Inner> {
     wake();
     switch (m) {
       case 'walk': play(walkDir > 0 ? 'walk_right' : 'walk_left', { scale: walkScale }); break;
-      case 'pet': play('petted'); break;
-      case 'play': play('play'); break;
+      case 'pet': play('petted', { scale: POSE_SCALE[char]?.petted }); break;
+      case 'play': play('play', { scale: POSE_SCALE[char]?.play }); break;
       case 'eat': play('eat'); break;
       case 'drink': play('drink'); break;
       case 'sleep': play('sleep', { breath: 0.006 }); break;
